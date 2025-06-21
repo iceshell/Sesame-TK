@@ -220,3 +220,8 @@ jobs:
             📦 本 Release 同步自源仓库 [Sesame-TK](https://github.com/${{ github.repository }})
             ✨ **更新内容**:
             ${{ github.event.release.body || '无更新说明' }}
+
+        - name: List APK Files
+          run: |
+            find . -name '*.apk' -exec ls -lh {} \;
+          shell: bash
