@@ -1,8 +1,11 @@
 package fansirsqi.xposed.sesame.task.antForest;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
+
 import java.util.HashMap;
 import java.util.Map;
+
 import fansirsqi.xposed.sesame.entity.VitalityStore.ExchangeStatus;
 import fansirsqi.xposed.sesame.util.Log;
 import fansirsqi.xposed.sesame.util.maps.IdMapManager;
@@ -10,19 +13,21 @@ import fansirsqi.xposed.sesame.util.maps.UserMap;
 import fansirsqi.xposed.sesame.util.maps.VitalityRewardsMap;
 import fansirsqi.xposed.sesame.util.ResChecker;
 import fansirsqi.xposed.sesame.data.Status;
+
 /**
  * @author Byseven
- * @see  2025/1/20
  * @apiNote
+ * @see 2025/1/20
  */
 public class Vitality {
     private static final String TAG = Vitality.class.getSimpleName();
     static Map<String, JSONObject> skuInfo = new HashMap<>();
+
     public static JSONArray ItemListByType(String labelType) {
         JSONArray itemInfoVOList = null;
         try {
             JSONObject jo = new JSONObject(AntForestRpcCall.itemList(labelType));
-            if (ResChecker.checkRes(TAG,  jo)) {
+            if (ResChecker.checkRes(TAG + "查询森林活力值商品列表失败:", jo)) {
                 itemInfoVOList = jo.optJSONArray("itemInfoVOList");
             }
         } catch (Throwable th) {
@@ -31,10 +36,11 @@ public class Vitality {
         }
         return itemInfoVOList;
     }
+
     public static void ItemDetailBySpuId(String spuId) {
         try {
             JSONObject jo = new JSONObject(AntForestRpcCall.itemDetail(spuId));
-            if (ResChecker.checkRes(TAG,  jo)) {
+            if (ResChecker.checkRes(TAG + "查询森林活力值商品详情失败:", jo)) {
                 JSONObject ItemDetail = jo.getJSONObject("spuItemInfoVO");
                 handleItemDetail(ItemDetail);
             }
@@ -43,6 +49,7 @@ public class Vitality {
             Log.printStackTrace(TAG, th);
         }
     }
+
     public static void initVitality(String labelType) {
         try {
             JSONArray itemInfoVOList = ItemListByType(labelType);
@@ -59,6 +66,7 @@ public class Vitality {
             Log.printStackTrace(TAG, th);
         }
     }
+
     private static void handleVitalityItem(JSONObject vitalityItem) {
         try {
             //海洋随机拼图skuModelList节点下没有spuId
@@ -67,12 +75,20 @@ public class Vitality {
             for (int i = 0; i < skuModelList.length(); i++) {
                 JSONObject skuModel = skuModelList.getJSONObject(i);
                 String skuId = skuModel.getString("skuId");
+                String oderInfo;
                 String skuName = skuModel.getString("skuName");
+                int price = skuModel.getJSONObject("price").getInt("amount");
+                oderInfo = skuName + "\n价格" + price + "🍃活力值";
+                if (skuName.contains("能量雨") || skuName.contains("敦煌") || skuName.contains("保护罩") || skuName.contains("海洋") || skuName.contains("物种") || skuName.contains("收能量") || skuName.contains("隐身")) {
+                    oderInfo = skuName + "\n价格" + price + "🍃活力值" + "\n每日限时兑1个";
+                } else if (skuName.equals("限时31天内使用31天长效双击卡")) {
+                    oderInfo = skuName + "\n价格" + price + "🍃活力值" + "\n每月限时兑1个，记得关，艹";
+                }
                 if (!skuModel.has("spuId")) {
                     skuModel.put("spuId", spuId);
                 }
                 skuInfo.put(skuId, skuModel);
-                IdMapManager.getInstance(VitalityRewardsMap.class).add(skuId, skuName);
+                IdMapManager.getInstance(VitalityRewardsMap.class).add(skuId, oderInfo);
             }
             IdMapManager.getInstance(VitalityRewardsMap.class).save(UserMap.getCurrentUid());
         } catch (Throwable th) {
@@ -80,6 +96,7 @@ public class Vitality {
             Log.printStackTrace(TAG, th);
         }
     }
+
     private static void handleItemDetail(JSONObject ItemDetail) {
         try {
             String spuId = ItemDetail.getString("spuId");
@@ -113,7 +130,7 @@ public class Vitality {
         }
         JSONObject sku = skuInfo.get(skuId);
         if (sku == null) {
-            Log.record(TAG,"活力兑换🍃找不到要兑换的权益！");
+            Log.record(TAG, "活力兑换🍃找不到要兑换的权益！");
             return false;
         }
         try {
@@ -123,7 +140,7 @@ public class Vitality {
                 String itemStatus = itemStatusList.getString(i);
                 ExchangeStatus Status = ExchangeStatus.valueOf(itemStatus);
                 if (Status.name().equals(itemStatus) || Status.name().equals(itemStatus) || Status.name().equals(itemStatus)) {
-                    Log.record(TAG,"活力兑换🍃[" + skuName + "]停止:" + Status.getNickName());
+                    Log.record(TAG, "活力兑换🍃[" + skuName + "]停止:" + Status.getNickName());
                     if (ExchangeStatus.REACH_LIMIT.name().equals(itemStatus)) {
                         fansirsqi.xposed.sesame.data.Status.setFlagToday("forest::VitalityExchangeLimit::" + skuId);
                         Log.forest("活力兑换🍃[" + skuName + "]已达上限,停止兑换！");
@@ -133,7 +150,7 @@ public class Vitality {
             }
             String spuId = sku.getString("spuId");
             if (VitalityExchange(spuId, skuId, skuName)) {
-                if (skuName.contains("限时")){
+                if (skuName.contains("限时")) {
                     Status.setFlagToday("forest::VitalityExchangeLimit::" + skuId);
                 }
                 return true;
@@ -145,6 +162,7 @@ public class Vitality {
         }
         return false;
     }
+
     public static Boolean VitalityExchange(String spuId, String skuId, String skuName) {
         try {
             if (VitalityExchange(spuId, skuId)) {
@@ -159,16 +177,18 @@ public class Vitality {
         }
         return false;
     }
+
     private static Boolean VitalityExchange(String spuId, String skuId) {
         try {
             JSONObject jo = new JSONObject(AntForestRpcCall.exchangeBenefit(spuId, skuId));
-            return ResChecker.checkRes(TAG, jo);
+            return ResChecker.checkRes(TAG + "森林活力值兑换失败:", jo);
         } catch (Throwable th) {
             Log.runtime(TAG, "VitalityExchange err:" + spuId + "," + skuId);
             Log.printStackTrace(TAG, th);
         }
         return false;
     }
+
     /**
      * 查找商店道具
      *
@@ -182,7 +202,7 @@ public class Vitality {
             for (String key : skuInfo.keySet()) {
                 JSONObject sku = skuInfo.get(key);
                 assert sku != null;
-                if(sku.getString("skuName").contains(spuName)){
+                if (sku.getString("skuName").contains(spuName)) {
                     return sku;
                 }
             }

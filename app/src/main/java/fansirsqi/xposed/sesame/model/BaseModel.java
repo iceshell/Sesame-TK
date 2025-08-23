@@ -1,26 +1,15 @@
 package fansirsqi.xposed.sesame.model;
 
 
-import java.util.concurrent.ExecutorService;
-
 import fansirsqi.xposed.sesame.model.modelFieldExt.BooleanModelField;
 import fansirsqi.xposed.sesame.model.modelFieldExt.ChoiceModelField;
 import fansirsqi.xposed.sesame.model.modelFieldExt.IntegerModelField;
 import fansirsqi.xposed.sesame.model.modelFieldExt.ListModelField;
 import fansirsqi.xposed.sesame.model.modelFieldExt.StringModelField;
-import fansirsqi.xposed.sesame.task.antOcean.AntOcean;
-import fansirsqi.xposed.sesame.task.reserve.Reserve;
-import fansirsqi.xposed.sesame.util.GlobalThreadPools;
 import fansirsqi.xposed.sesame.util.ListUtil;
 import fansirsqi.xposed.sesame.util.Log;
 import fansirsqi.xposed.sesame.util.maps.BeachMap;
-import fansirsqi.xposed.sesame.util.maps.CooperateMap;
 import fansirsqi.xposed.sesame.util.maps.IdMapManager;
-import fansirsqi.xposed.sesame.util.maps.MemberBenefitsMap;
-import fansirsqi.xposed.sesame.util.maps.ParadiseCoinBenefitIdMap;
-import fansirsqi.xposed.sesame.util.maps.ReserveaMap;
-import fansirsqi.xposed.sesame.util.maps.VitalityRewardsMap;
-import fansirsqi.xposed.sesame.util.RandomUtil;
 import lombok.Getter;
 
 /**
@@ -188,18 +177,6 @@ public class BaseModel extends Model {
         return modelFields;
     }
 
-    /**
-     * 初始化数据，通过异步线程加载初始化 Reserve 和 Beach 任务数据。
-     */
-    public static void initData() {
-        new Thread(() -> {
-            try {
-                GlobalThreadPools.sleep(RandomUtil.nextInt(4500, 6000));
-            } catch (Exception e) {
-                Log.printStackTrace(e);
-            }
-        }).start();;
-    }
 
     /**
      * 清理数据，在模块销毁时调用，清空 Reserve 和 Beach 数据。

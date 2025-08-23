@@ -28,6 +28,7 @@ object Detector {
     fun loadLibrary(libraryName: String): Boolean {
         try {
             System.loadLibrary(libraryName)
+            Log.runtime(TAG, "loadLibrary $libraryName success")
             return true
         } catch (e: UnsatisfiedLinkError) {
             Log.error(TAG, "loadLibrary${e.message}")
@@ -39,6 +40,13 @@ object Detector {
     external fun tips(context: Context, message: String?)
     external fun isEmbeddedNative(context: Context): Boolean
     external fun dangerous(context: Context)
+
+    external fun getRandomApi(key: Int): String
+    external fun getRandomEncryptData(key: Int): String
+
+    fun getApi(key: Int): String {
+        return getRandomApi(key)
+    }
 
     /**
      * 检测是否通过LSPatch运行
@@ -94,3 +102,5 @@ object Detector {
     }
 
 }
+
+

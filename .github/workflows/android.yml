@@ -2,9 +2,9 @@ name: Android CI
 
 on:
   push:
-    branches: ["develop"]
+    branches: ["main"]
   pull_request:
-    branches: ["develop"]
+    branches: ["main"]
   release:
     types: [published]
   workflow_dispatch:
@@ -98,7 +98,7 @@ jobs:
           normal_file=$(basename "${{ steps.extract_apks.outputs.signed_normal }}")
           compatible_file=$(basename "${{ steps.extract_apks.outputs.signed_compatible }}")
           # 提取版本号（以"Normal-"或"Compatible-"之后的部分为起点，以"-signed"之前的内容为终点）
-          version=$(echo "$normal_file" | sed -E 's/.*-(Normal|Compatible)-(.*)-signed\.apk/\2/')
+          version=$(echo "$normal_file" | sed -E 's/.*-(Normal|Compatible)-(v[^-]+).*-signed\.apk/\2/')
           echo "normal_file=$normal_file" >> $GITHUB_OUTPUT
           echo "compatible_file=$compatible_file" >> $GITHUB_OUTPUT
           echo "version=$version" >> $GITHUB_OUTPUT
@@ -108,69 +108,6 @@ jobs:
           sha256sum ${{ steps.extract_apks.outputs.signed_normal }} > CHECKSUMS-Sesame-Normal-${{ steps.extract_info.outputs.version }}.${{ env.SHORT_SHA }}-signed.apk.sha256
           sha256sum ${{ steps.extract_apks.outputs.signed_compatible }} > CHECKSUMS-Sesame-Compatible-${{ steps.extract_info.outputs.version }}.${{ env.SHORT_SHA }}-signed.apk.sha256
 
-      - name: Get Commit Details
-        id: commit_details
-        run: |
-          COMMIT_MESSAGE_BODY=$( \
-            if [[ "${{ github.event_name }}" == "push" ]]; then \
-              echo "🔨 $(git rev-list --count ${{ github.event.before }}..${{ github.event.after }}) new commits to ${{ github.repository }}:${{ github.ref_name }} ([compare view](https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.event.after }}))"; \
-              echo ""; \
-              git log --format="  %h ([view commit](https://github.com/${{ github.repository }}/commit/%H)): %s by %an" ${{ github.event.before }}..${{ github.event.after }}; \
-            elif [[ "${{ github.event_name }}" == "pull_request" ]]; then \
-              echo "📦 Pull Request #${{ github.event.number }} for ${{ github.repository }}: ${{ github.head_ref }} -> ${{ github.base_ref }} ([view PR](https://github.com/${{ github.repository }}/pull/${{ github.event.number }}))"; \
-              echo ""; \
-              echo "Commits:"; \
-              git log --format="  %h ([view commit](https://github.com/${{ github.repository }}/commit/%H)): %s by %an" ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}; \
-            elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then \
-              echo "⚙️ Manual workflow run on ${{ github.ref_name }} by ${{ github.actor }}"; \
-              echo ""; \
-              echo "Latest commit:"; \
-              git log -1 --format="  %h ([view commit](https://github.com/${{ github.repository }}/commit/%H)): %s by %an"; \
-            else \
-              echo "ℹ️ Commit information for ${{ github.event_name }} event on ${{ github.ref_name }} by ${{ github.actor }}:"; \
-              echo ""; \
-              git log -1 --format="  %h ([view commit](https://github.com/${{ github.repository }}/commit/%H)): %s by %an"; \
-            fi \
-          )
-          echo "COMMIT_MESSAGE_BODY<<EOF" >> $GITHUB_OUTPUT
-          echo "$COMMIT_MESSAGE_BODY" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Send Combined Message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TG_CHAT_ID }}
-          token: ${{ secrets.TG_BOT_TOKEN }}
-          message: |
-            📦 *New Version ${{ steps.extract_info.outputs.version }} Build!*
-
-            - Files: 
-              - Normal: `${{ steps.extract_info.outputs.normal_file }}`
-              - Compatible: `${{ steps.extract_info.outputs.compatible_file }}`
-            - Branch: `${{ github.ref_name }}`
-            - Triggered by: `${{ github.actor }}`
-
-            *下载说明:*
-              * Normal 为正常版本,适用于`Android 8.0`及以上的系统
-              * Compatible 为兼容版本,适用于`Android 7.0`及以下的系统,最低支持`Android 5.1`
-
-            ${{ steps.commit_details.outputs.COMMIT_MESSAGE_BODY }}
-          format: markdown
-
-      - name: Send Normal APK
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TG_CHAT_ID }}
-          token: ${{ secrets.TG_BOT_TOKEN }}
-          document: ${{ steps.extract_apks.outputs.signed_normal }}
-
-      - name: Send Compatible APK
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TG_CHAT_ID }}
-          token: ${{ secrets.TG_BOT_TOKEN }}
-          document: ${{ steps.extract_apks.outputs.signed_compatible }}
-
       - name: Create Tag from Version
         if: startsWith(github.ref, 'refs/heads/main') && github.event_name == 'push'
         run: |
@@ -178,6 +115,27 @@ jobs:
           echo "Creating tag: $VERSION_TAG"
           git tag "$VERSION_TAG"
           git push origin "$VERSION_TAG"
+
+      - name: Post to channel
+        if: github.ref == 'refs/heads/main'
+        env:
+          CHANNEL_ID: ${{ secrets.TG_CHAT_ID }}
+          BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          NORMAL_FILE: ${{ steps.extract_apks.outputs.signed_normal }}
+          COMPATIBLE_FILE: ${{ steps.extract_apks.outputs.signed_compatible }}
+          COMMIT_MESSAGE: |+
+            New push to github\!
+            ```
+            ${{ github.event.head_commit.message }}
+            ```by `${{ github.event.head_commit.author.name }}`
+            See commit detail [here](${{ github.event.head_commit.url }})
+        run: |
+          ESCAPED=$(python3 -c 'import json, os, urllib.parse; print(urllib.parse.quote(json.dumps(os.environ["COMMIT_MESSAGE"])))')
+          curl -v "https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup?chat_id=${CHANNEL_ID}&media=%5B%7B%22type%22:%22document%22,%20%22media%22:%22attach://normal.apk%22,%22parse_mode%22:%22MarkdownV2%22,%22caption%22:${ESCAPED}%7D,%20%7B%22type%22:%22document%22,%22media%22:%22attach://compatible.apk%22%7D%5D" \
+            -F "normal.apk=@${NORMAL_FILE}" \
+            -F "compatible.apk=@${COMPATIBLE_FILE}"
+      
+
       - name: Upload Assets to Source Release
         uses: softprops/action-gh-release@v2
         with:

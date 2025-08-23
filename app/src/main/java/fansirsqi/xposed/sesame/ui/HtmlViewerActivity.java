@@ -28,6 +28,7 @@ import androidx.webkit.WebViewFeature;
 import java.io.File;
 
 import fansirsqi.xposed.sesame.R;
+import fansirsqi.xposed.sesame.newui.WatermarkView;
 import fansirsqi.xposed.sesame.util.Files;
 import fansirsqi.xposed.sesame.util.LanguageUtil;
 import fansirsqi.xposed.sesame.util.Log;
@@ -46,7 +47,7 @@ public class HtmlViewerActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         LanguageUtil.setLocale(this);
         setContentView(R.layout.activity_html_viewer);
-
+        WatermarkView.Companion.install(this);
         // 初始化 WebView 和进度条
         mWebView = findViewById(R.id.mwv_webview);
         progressBar = findViewById(R.id.pgb_webview);

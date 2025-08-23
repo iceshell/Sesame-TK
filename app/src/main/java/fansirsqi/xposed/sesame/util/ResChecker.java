@@ -10,7 +10,7 @@ public class ResChecker {
 
     private static boolean core(String TAG, JSONObject jo) {
         try {
-            Log.runtime(TAG, "Checking JSON success: " + jo);
+//            Log.runtime(TAG, "Checking JSON success: " + jo);
             // 检查 success 或 isSuccess 字段为 true
             if (jo.optBoolean("success") || jo.optBoolean("isSuccess")) {
                 return true;
@@ -53,7 +53,7 @@ public class ResChecker {
      * @param jo JSON对象
      * @return true 如果成功
      */
-    public static boolean checkRes(JSONObject jo) {
+    private static boolean checkRes(JSONObject jo) {
         return core(TAG, jo);
     }
 
