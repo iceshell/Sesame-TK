@@ -115,6 +115,19 @@ public class BaseModel extends Model {
      */
     @Getter
     public static final BooleanModelField batteryPerm = new BooleanModelField("batteryPerm", "为支付宝申请后台运行权限", true);
+    
+    /**
+     * 验证码拦截开关
+     */
+    @Getter
+    public static final BooleanModelField enableCaptchaHook = new BooleanModelField("enableCaptchaHook", "启用验证码拦截", false);
+    
+    /**
+     * 验证码拦截级别
+     */
+    @Getter
+    public static final ChoiceModelField captchaHookLevel = new ChoiceModelField("captchaHookLevel", "验证码拦截级别", CaptchaHookLevel.SLIDE_CAPTCHA, CaptchaHookLevel.nickNames);
+    
     /**
      * 是否记录record日志
      */
@@ -192,6 +205,8 @@ public class BaseModel extends Model {
         modelFields.addField(sendHookData);//启用Hook数据转发
         modelFields.addField(sendHookDataUrl);//Hook数据转发地址
         modelFields.addField(batteryPerm);//是否申请支付宝的后台运行权限
+        modelFields.addField(enableCaptchaHook);//验证码拦截开关
+        modelFields.addField(captchaHookLevel);//验证码拦截级别
         modelFields.addField(recordLog);//是否记录record日志
         modelFields.addField(runtimeLog);//是否记录runtime日志
         modelFields.addField(showToast);//是否显示气泡提示
@@ -225,5 +240,14 @@ public class BaseModel extends Model {
         int SYSTEM = 0;
         int PROGRAM = 1;
         String[] nickNames = {"🤖系统计时", "📦程序计时"};
+    }
+
+    /**
+     * 验证码拦截级别选项
+     */
+    public interface CaptchaHookLevel {
+        int NORMAL_CAPTCHA = 0;
+        int SLIDE_CAPTCHA = 1;
+        String[] nickNames = {"🔓普通验证(放行滑块)", "🛡️滑块验证(屏蔽所有)"};
     }
 }
