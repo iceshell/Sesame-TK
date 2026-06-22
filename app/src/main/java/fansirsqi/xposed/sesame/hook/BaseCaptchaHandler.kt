@@ -99,6 +99,15 @@ abstract class BaseCaptchaHandler {
             Log.record(TAG, "命中滑块手柄: bounds=(${sliderHandle.left},${sliderHandle.top},${sliderHandle.right},${sliderHandle.bottom}), center=(${sliderHandle.centerX.toInt()},${sliderHandle.centerY.toInt()})")
             Log.record(TAG, "实际滑动参数: 起点=(${actualStartX.toInt()},${actualStartY.toInt()}), 终点=(${actualEndX.toInt()},${actualEndY.toInt()}), 距离=${distance.toInt()}px")
             val beforeSnapshot = CaptchaVisualSnapshot(fullBitmap, croppedBitmap, recognitionResult)
+
+            // P2-01.4: 模型高置信度(≥2候选+>0.85分)跳过截图校验，降低误判失败率
+            if (recognitionResult.candidateCount >= 2 && recognitionResult.confidence > 0.85f) {
+                Log.record(TAG, "[模型高置信度] candidates=${recognitionResult.candidateCount}, conf=${recognitionResult.confidence}, 跳过截图校验直接执行滑动")
+                val slideOk = executeSlideOnView(decorView, actualStartX, actualStartY, actualEndX, actualEndY, beforeSnapshot, cropTop, cropBottom)
+                return if (slideOk) ActivityHandleResult.HANDLED
+                       else { logRetryableFailure("execute-slide-on-view-failed"); ActivityHandleResult.FAILED_RETRYABLE }
+            }
+
             return if (executeSlideOnView(decorView, actualStartX, actualStartY, actualEndX, actualEndY, beforeSnapshot, cropTop, cropBottom)) ActivityHandleResult.HANDLED
                    else { logRetryableFailure("execute-slide-on-view-failed"); ActivityHandleResult.FAILED_RETRYABLE }
         } catch (e: Exception) { Log.record(TAG, "新版验证码处理出错: ${e.stackTraceToString()}"); logRetryableFailure("new-version-exception"); return ActivityHandleResult.FAILED_RETRYABLE }
