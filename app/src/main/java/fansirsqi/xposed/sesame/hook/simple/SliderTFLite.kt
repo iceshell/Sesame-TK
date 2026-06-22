@@ -50,12 +50,16 @@ class SliderTFLite(val context: Context) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, SlideRecognitionResult?>?): Boolean = size > CACHE_MAX_SIZE
         }
 
-        /** 基于bitmap内容hash的轻量缓存key（取前1000像素+宽高采样） */
+        /** bitmap内容轻量hash（采样多行像素+宽高，避免滑动前后截图碰撞） */
         private fun bitmapHash(bitmap: Bitmap): Int {
             var h = bitmap.width * 31 + bitmap.height
-            val pixels = IntArray(minOf(1000, bitmap.width * bitmap.height))
-            bitmap.getPixels(pixels, 0, minOf(1000, bitmap.width), 0, 0, minOf(1000, bitmap.width), minOf(1, bitmap.height))
-            for (i in 0 until minOf(1000, pixels.size)) h = h * 31 + pixels[i]
+            val stride = maxOf(1, bitmap.height / 4)
+            for (row in 0 until minOf(4, bitmap.height)) {
+                val y = row * stride
+                val rowPixels = IntArray(minOf(200, bitmap.width))
+                bitmap.getPixels(rowPixels, 0, rowPixels.size, 0, y, rowPixels.size, 1)
+                for (p in rowPixels) h = h * 31 + p
+            }
             return h
         }
 
