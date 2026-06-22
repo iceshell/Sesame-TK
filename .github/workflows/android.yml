@@ -24,6 +24,18 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: 🎯 计算版本号（0.9.9 + 提交次数）
+        id: version
+        run: |
+          # 获取当前分支总提交次数
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          # 拼接版本号：0.9.9.提交次数
+          FULL_VERSION="0.9.9.${COMMIT_COUNT}"
+          echo "commit_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+          echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
+          echo "当前提交次数: $COMMIT_COUNT"
+          echo "最终版本号: $FULL_VERSION"
       
       - name: ☕ Set up JDK
         uses: actions/setup-java@v4
@@ -47,13 +59,8 @@ jobs:
 
       - name: 🔥 Build with Gradle
         run: |
-          # 版本号逻辑：tag触发用tag名，其他用完整提交哈希
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            VERSION="${{ github.ref_name }}"
-          else
-            VERSION="${{ github.sha }}"
-          fi
-          ./gradlew assembleRelease -Pversion=$VERSION
+          # 使用计算好的带提交次数的版本号构建
+          ./gradlew assembleRelease -Pversion=${{ steps.version.outputs.full_version }}
         env:
           ORG_GRADLE_PROJECT_ci: true
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true"
@@ -165,11 +172,8 @@ jobs:
       - name: 🛠️ Extract file names and version
         id: extract_info
         run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            VERSION="${{ github.ref_name }}"
-          else
-            VERSION="build-$(echo ${{ github.sha }} | cut -c1-7)"
-          fi
+          # 复用计算好的版本号
+          VERSION="${{ steps.version.outputs.full_version }}"
           
           arm64_file=$(basename "${{ steps.extract_apks.outputs.signed_arm64 }}" 2>/dev/null || true)
           armv7_file=$(basename "${{ steps.extract_apks.outputs.signed_armv7 }}" 2>/dev/null || true)
@@ -186,30 +190,33 @@ jobs:
 
       - name: 🎨 Generate APKS Checksum
         run: |
-          [ -n "${{ steps.extract_apks.outputs.signed_arm64 }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_arm64 }} > CHECKSUMS-Sesame-arm64-v8a-${{ steps.extract_info.outputs.version }}.apk.sha256
-          [ -n "${{ steps.extract_apks.outputs.signed_armv7 }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_armv7 }} > CHECKSUMS-Sesame-armeabi-v7a-${{ steps.extract_info.outputs.version }}.apk.sha256
-          [ -n "${{ steps.extract_apks.outputs.signed_x86 }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_x86 }} > CHECKSUMS-Sesame-x86-${{ steps.extract_info.outputs.version }}.apk.sha256
-          [ -n "${{ steps.extract_apks.outputs.signed_x86_64 }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_x86_64 }} > CHECKSUMS-Sesame-x86_64-${{ steps.extract_info.outputs.version }}.apk.sha256
-          [ -n "${{ steps.extract_apks.outputs.signed_universal }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_universal }} > CHECKSUMS-Sesame-universal-${{ steps.extract_info.outputs.version }}.apk.sha256
+          VERSION="${{ steps.version.outputs.full_version }}"
+          [ -n "${{ steps.extract_apks.outputs.signed_arm64 }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_arm64 }} > CHECKSUMS-Sesame-arm64-v8a-${VERSION}.apk.sha256
+          [ -n "${{ steps.extract_apks.outputs.signed_armv7 }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_armv7 }} > CHECKSUMS-Sesame-armeabi-v7a-${VERSION}.apk.sha256
+          [ -n "${{ steps.extract_apks.outputs.signed_x86 }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_x86 }} > CHECKSUMS-Sesame-x86-${VERSION}.apk.sha256
+          [ -n "${{ steps.extract_apks.outputs.signed_x86_64 }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_x86_64 }} > CHECKSUMS-Sesame-x86_64-${VERSION}.apk.sha256
+          [ -n "${{ steps.extract_apks.outputs.signed_universal }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_universal }} > CHECKSUMS-Sesame-universal-${VERSION}.apk.sha256
 
       - name: 🚀 Upload Assets to Source Release
-        # 触发条件：推送v开头tag 或 手动发布Release
+        # 触发条件：推送v开头Tag 或 手动网页发布Release
         if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release' && github.event.action == 'published'
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ steps.extract_info.outputs.version }}
+          # Release标题：v + 完整版本号（带提交次数）
+          name: v${{ steps.version.outputs.full_version }}
+          # Release标签沿用你推送的Tag名（如v0.9.9）
+          tag_name: ${{ github.ref_name }}
           files: |
             ${{ steps.extract_apks.outputs.signed_arm64 }}
             ${{ steps.extract_apks.outputs.signed_armv7 }}
             ${{ steps.extract_apks.outputs.signed_x86 }}
             ${{ steps.extract_apks.outputs.signed_x86_64 }}
             ${{ steps.extract_apks.outputs.signed_universal }}
-            CHECKSUMS-Sesame-arm64-v8a-${{ steps.extract_info.outputs.version }}.apk.sha256
-            CHECKSUMS-Sesame-armeabi-v7a-${{ steps.extract_info.outputs.version }}.apk.sha256
-            CHECKSUMS-Sesame-x86-${{ steps.extract_info.outputs.version }}.apk.sha256
-            CHECKSUMS-Sesame-x86_64-${{ steps.extract_info.outputs.version }}.apk.sha256
-            CHECKSUMS-Sesame-universal-${{ steps.extract_info.outputs.version }}.apk.sha256
-          tag_name: ${{ steps.extract_info.outputs.version }}
+            CHECKSUMS-Sesame-arm64-v8a-${{ steps.version.outputs.full_version }}.apk.sha256
+            CHECKSUMS-Sesame-armeabi-v7a-${{ steps.version.outputs.full_version }}.apk.sha256
+            CHECKSUMS-Sesame-x86-${{ steps.version.outputs.full_version }}.apk.sha256
+            CHECKSUMS-Sesame-x86_64-${{ steps.version.outputs.full_version }}.apk.sha256
+            CHECKSUMS-Sesame-universal-${{ steps.version.outputs.full_version }}.apk.sha256
           draft: false
           append_body: true
           make_latest: true
@@ -223,6 +230,10 @@ jobs:
             [![Telegram-Group](https://img.shields.io/badge/Sesame--TK-nul?&logo=Telegram&label=Telegram-Group&labelColor=fff&link=https%3A%2F%2Ft.me%2Ffansirsqi_xposed_sesame)](https://t.me/fansirsqi_xposed_sesame)
             [![Static Badge](https://img.shields.io/badge/QQ--Channel-nul?style=flat&logo=qq&labelColor=%23fff&logoSize=12&label=%E8%85%BE%E8%AE%AF%E9%A2%91%E9%81%93&link=https%3A%2F%2Fpd.qq.com%2Fs%2Fhdvws4vuf)](https://pd.qq.com/s/hdvws4vuf)
             [![Static Badge](https://img.shields.io/badge/QQ--Group-nul?style=flat&logo=qq&logoSize=12&label=QQ%E7%BE%A4%E8%81%8A&labelColor=%23fff&link=https%3A%2F%2Fqm.qq.com%2Fq%2FAj0Xby6AGQ)](https://qm.qq.com/q/Aj0Xby6AGQ)
+            > ## 版本信息
+            - 基础版本：0.9.9
+            - 累计提交数：${{ steps.version.outputs.commit_count }}
+            - 完整版本号：${{ steps.version.outputs.full_version }}
             > ## 下载说明
             <b>- arm64-v8a:</b> 适用于64位ARM设备 (主流新手机)
             <b>- armeabi-v7a:</b> 适用于32位ARM设备 (旧款手机)
