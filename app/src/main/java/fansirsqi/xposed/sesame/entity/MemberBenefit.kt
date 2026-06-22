@@ -11,9 +11,7 @@ class MemberBenefit(i: String, n: String) : MapperEntity() {
     }
 
     companion object {
-        fun getList(): List<MemberBenefit> {
-            return IdMapManager.getInstance(MemberBenefitsMap::class.java).map
-                .map { (key, value) -> MemberBenefit(key, value) }
-        }
+        @JvmStatic
+        fun getList(): List<MemberBenefit> = EntityHelper.getList(MemberBenefitsMap::class.java) { k, v -> MemberBenefit(k, v) }
     }
 }

@@ -13,10 +13,8 @@ class CooperateEntity(i: String, n: String) : MapperEntity() {
     }
 
     companion object {
-        fun getList(): List<CooperateEntity> {
-            return IdMapManager.getInstance(CooperateMap::class.java).map
-                .map { (key, value) -> CooperateEntity(key, value) }
-        }
+        @JvmStatic
+        fun getList(): List<CooperateEntity> = EntityHelper.getList(CooperateMap::class.java) { k, v -> CooperateEntity(k, v) }
     }
 
 }

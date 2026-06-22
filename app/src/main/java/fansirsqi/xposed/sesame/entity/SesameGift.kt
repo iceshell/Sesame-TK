@@ -9,9 +9,7 @@ class SesameGift(i: String, n: String) : MapperEntity() {
     }
 
     companion object {
-        fun getList(): List<SesameGift> {
-            return IdMapManager.getInstance(SesameGiftMap::class.java).map
-                .map { (key, value) -> SesameGift(key, value) }
-        }
+        @JvmStatic
+        fun getList(): List<SesameGift> = EntityHelper.getList(SesameGiftMap::class.java) { k, v -> SesameGift(k, v) }
     }
 }
