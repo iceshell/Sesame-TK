@@ -47,7 +47,12 @@ jobs:
 
       - name: 🔥 Build with Gradle
         run: |
-          VERSION=${{ coalesce(github.ref_name, github.sha) }}
+          # 版本号逻辑：tag触发用tag名，其他用完整提交哈希
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="${{ github.sha }}"
+          fi
           ./gradlew assembleRelease -Pversion=$VERSION
         env:
           ORG_GRADLE_PROJECT_ci: true
@@ -188,10 +193,11 @@ jobs:
           [ -n "${{ steps.extract_apks.outputs.signed_universal }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_universal }} > CHECKSUMS-Sesame-universal-${{ steps.extract_info.outputs.version }}.apk.sha256
 
       - name: 🚀 Upload Assets to Source Release
-        if: github.event_name == 'release' && github.event.action == 'published'
+        # 触发条件：推送v开头tag 或 手动发布Release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release' && github.event.action == 'published'
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.event.release.tag_name || steps.extract_info.outputs.version }}
+          name: ${{ steps.extract_info.outputs.version }}
           files: |
             ${{ steps.extract_apks.outputs.signed_arm64 }}
             ${{ steps.extract_apks.outputs.signed_armv7 }}
@@ -203,7 +209,7 @@ jobs:
             CHECKSUMS-Sesame-x86-${{ steps.extract_info.outputs.version }}.apk.sha256
             CHECKSUMS-Sesame-x86_64-${{ steps.extract_info.outputs.version }}.apk.sha256
             CHECKSUMS-Sesame-universal-${{ steps.extract_info.outputs.version }}.apk.sha256
-          tag_name: ${{ steps.extract_info.outputs.version}}
+          tag_name: ${{ steps.extract_info.outputs.version }}
           draft: false
           append_body: true
           make_latest: true
