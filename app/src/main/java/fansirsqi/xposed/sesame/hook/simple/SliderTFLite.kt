@@ -44,6 +44,21 @@ class SliderTFLite(val context: Context) {
         @Volatile
         private var unloadTicket: Long = 0L
 
+        // 识别结果缓存：bitmapHash → 结果（避免重试时重复识别同一张截图）
+        private const val CACHE_MAX_SIZE = 3
+        private val recognitionCache = object : LinkedHashMap<Int, SlideRecognitionResult?>(CACHE_MAX_SIZE, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, SlideRecognitionResult?>?): Boolean = size > CACHE_MAX_SIZE
+        }
+
+        /** 基于bitmap内容hash的轻量缓存key（取前1000像素+宽高采样） */
+        private fun bitmapHash(bitmap: Bitmap): Int {
+            var h = bitmap.width * 31 + bitmap.height
+            val pixels = IntArray(minOf(1000, bitmap.width * bitmap.height))
+            bitmap.getPixels(pixels, 0, minOf(1000, bitmap.width), 0, 0, minOf(1000, bitmap.width), minOf(1, bitmap.height))
+            for (i in 0 until minOf(1000, pixels.size)) h = h * 31 + pixels[i]
+            return h
+        }
+
         fun preloadAsync(context: Context) {
             val appContext = context.applicationContext
             GlobalThreadPools.execute(
@@ -76,38 +91,39 @@ class SliderTFLite(val context: Context) {
             conf: Float = CONF_THRESHOLD,
             iou: Float = IOU_THRESHOLD
         ): SlideRecognitionResult? {
-            // 优先尝试 TFLite 模型识别
+            // 3. 识别结果缓存：同一bitmap避免重复推理（重试循环中getBitmapFromView可能返回相同截图）
+            val hash = bitmapHash(bitmap)
+            recognitionCache[hash]?.let { cached ->
+                Log.record(TAG, "[缓存命中] hash=$hash, result=${if(cached==null)"null" else "found"}")
+                return cached
+            }
+
+            var result: SlideRecognitionResult?
+            // 1. 优先尝试 TFLite 模型识别
             try {
                 val detector = obtainSharedModel(context.applicationContext, "inference")
-                val callerThread = Thread.currentThread().name
-                val callerIsMain = isMainThread()
-                val mlResult = withContext(GlobalThreadPools.computeDispatcher) {
+                result = withContext(GlobalThreadPools.computeDispatcher) {
                     val startTime = System.currentTimeMillis()
-                    Log.record(
-                        TAG,
-                        "[模型推理开始] callerThread=$callerThread, callerIsMain=$callerIsMain, workerThread=${Thread.currentThread().name}, isMain=${isMainThread()}, size=${bitmap.width}x${bitmap.height}"
-                    )
                     try {
                         detector.identifySlideRecognition(bitmap, conf, iou)
                     } finally {
                         touchSharedModelLocked()
-                        Log.record(
-                            TAG,
-                            "[模型推理结束] cost=${System.currentTimeMillis() - startTime}ms"
-                        )
+                        Log.record(TAG, "[模型推理结束] cost=${System.currentTimeMillis() - startTime}ms")
                     }
                 }
-                // ML 返回 null 时降级为边缘检测
-                if (mlResult == null) {
+                if (result == null) {
                     Log.record(TAG, "[模型识别为空] 降级为边缘检测")
-                    return identifyGapByEdgeDetection(bitmap)
+                    result = identifyGapByEdgeDetection(bitmap)
                 }
-                return mlResult
             } catch (e: Exception) {
-                // TFLite 模型不可用，降级使用像素级边缘检测
+                // 2. TFLite 不可用 → 降级边缘检测
                 Log.record(TAG, "[模型不可用] 降级为边缘检测: ${e.message}")
-                return identifyGapByEdgeDetection(bitmap)
+                result = identifyGapByEdgeDetection(bitmap)
             }
+
+            // 存入缓存
+            recognitionCache[hash] = result
+            return result
         }
 
         /**
@@ -585,8 +601,10 @@ class SliderTFLite(val context: Context) {
         val nw = (img.width * r).roundToInt(); val nh = (img.height * r).roundToInt()
         val dw = (INPUT_SIZE - nw) / 2; val dh = (INPUT_SIZE - nh) / 2
         val resized = Bitmap.createScaledBitmap(img, nw, nh, true)
-        val result = Bitmap.createBitmap(INPUT_SIZE, INPUT_SIZE, Bitmap.Config.ARGB_8888)
+        // 使用RGB_565节省50%内存（灰色边框不需要Alpha通道）
+        val result = Bitmap.createBitmap(INPUT_SIZE, INPUT_SIZE, Bitmap.Config.RGB_565)
         Canvas(result).apply { drawColor(Color.rgb(114, 114, 114)); drawBitmap(resized, dw.toFloat(), dh.toFloat(), null) }
+        if (!resized.isRecycled && resized !== img) resized.recycle()
         return Triple(result, r, Pair(dw, dh))
     }
 }

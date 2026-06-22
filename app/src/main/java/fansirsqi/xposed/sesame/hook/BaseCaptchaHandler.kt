@@ -38,6 +38,7 @@ abstract class BaseCaptchaHandler {
         private const val SLIDE_DURATION_MIN = 900L; private const val SLIDE_DURATION_MAX = 1400L
         private const val CORRECTIVE_SLIDE_DURATION_MIN = 420L; private const val CORRECTIVE_SLIDE_DURATION_MAX = 650L
         private const val POST_SLIDE_CHECK_DELAY_MS = 1200L; private const val NEW_CAPTCHA_CONFIDENCE_THRESHOLD = 0.55f
+        private const val RENDER_WAIT_MAX_MS = 1200L; private const val RENDER_POLL_INTERVAL_MS = 200L
         private const val OLD_SLIDE_VERIFY_TEXT_XPATH = "//TextView[contains(@text,'向右滑动验证')]"
         private const val NEW_SLIDE_VERIFY_TEXT_XPATH = "//View[contains(@text,'请拖动滑块完成拼图')]"
         private val captchaProcessingMutex = Mutex()
@@ -45,20 +46,31 @@ abstract class BaseCaptchaHandler {
     protected abstract fun getSlidePathKey(): String
 
     open suspend fun handleActivity(activity: Activity, root: SimpleViewImage): ActivityHandleResult {
+        val startTime = System.currentTimeMillis()
         return try {
-            val startTime = System.currentTimeMillis()
-            Log.record(TAG, "[触发命中] Activity 命中验证码处理器: ${activity.javaClass.name}, thread=${Thread.currentThread().name}, isMain=${isMainThread()}")
+            Log.record(TAG, "[触发命中] Activity=${activity.javaClass.name}, isMain=${isMainThread()}")
             val isNewVersion = if (VersionHook.hasVersion()) { VersionHook.getCapturedVersion()?.let { it.compareTo(AlipayVersion("10.6.58.9999")) > 0 } ?: false } else false
-            val result = if (isNewVersion) { Log.record(TAG, "检测到新版本应用，使用图像识别模式处理验证码。"); handleNewVersionCaptcha(activity) }
-                         else { Log.record(TAG, "检测到旧版本应用，使用传统模式处理验证码。"); handleLegacySlideCaptcha(activity) }
-            Log.record(TAG, "验证码处理完成，耗时: ${System.currentTimeMillis() - startTime}ms, 结果: $result")
+            val result = if (isNewVersion) { Log.record(TAG, "[新版本] 图像识别模式"); handleNewVersionCaptcha(activity) }
+                         else { Log.record(TAG, "[旧版本] 传统模式(stub)"); handleLegacySlideCaptcha(activity) }
+            Log.record(TAG, "[完成] 耗时=${System.currentTimeMillis()-startTime}ms, 结果=$result")
             result
-        } catch (e: Exception) { Log.error(TAG, "处理验证码页面时发生异常: ${e.stackTraceToString()}"); ActivityHandleResult.FAILED_RETRYABLE }
+        } catch (e: Exception) { Log.record(TAG, "[异常] 耗时=${System.currentTimeMillis()-startTime}ms, type=${e.javaClass.simpleName}, msg=${e.message}"); Log.error(TAG, "验证码处理异常: ${e.stackTraceToString()}"); ActivityHandleResult.FAILED_RETRYABLE }
     }
 
-    private fun logPrecheckSkip(skipReason: String, failReasons: List<String>, passReasons: List<String>) { Log.record(TAG, "precheck-skip-non-retryable: reason=$skipReason; fail=${failReasons.joinToString("; ")}; pass=${passReasons.joinToString(", ")}"); Log.record(TAG, "processing-window-released-after-skip: reason=$skipReason") }
-    private fun logAcceptedAfterSkip(anchorReason: String) { Log.record(TAG, "real-captcha-accepted-after-previous-skip: reason=$anchorReason") }
-    private fun logRetryableFailure(reason: String) { Log.record(TAG, "captcha-processing-failed-retryable: reason=$reason") }
+    // 错误分级日志
+    private fun logFail(level: String, reason: String, detail: String = "") {
+        val msg = "[$level] $reason${if(detail.isNotEmpty()) " | $detail" else ""}"
+        when (level) {
+            "WARN" -> Log.record(TAG, msg)
+            "ERROR" -> Log.error(TAG, msg)
+            else -> Log.record(TAG, msg)
+        }
+    }
+    private fun logPrecheckSkip(skipReason: String, failReasons: List<String>, passReasons: List<String>) {
+        Log.record(TAG, "[预检跳过] reason=$skipReason; fail=${failReasons.joinToString("; ")}; pass=${passReasons.joinToString(", ")}")
+    }
+    private fun logAcceptedAfterSkip(anchorReason: String) { Log.record(TAG, "[放行接受] reason=$anchorReason") }
+    private fun logRetryableFailure(reason: String) { Log.record(TAG, "[重试失败] reason=$reason") }
 
     @SuppressLint("SuspiciousIndentation")
     private suspend fun handleNewVersionCaptcha(activity: Activity): ActivityHandleResult {
