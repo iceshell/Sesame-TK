@@ -95,7 +95,12 @@ abstract class BaseCaptchaHandler {
             val sliderHandle = preCheck.sliderHandle ?: detectedHandle
             val actualStartX = sliderHandle.centerX; val actualStartY = sliderHandle.centerY
             // 边缘检测sliderX≈0时，直接以缺口位置为终点；TFLite时用偏移量
-            val actualEndX = if (sliderLocalX < 10f) targetLocalX.coerceAtMost(actualStartX + targetLocalX * 0.95f) else actualStartX + distance; val actualEndY = actualStartY
+            // 边缘检测不可靠时(sliderX≈0 或 slider≈target)，直接以缺口位置为终点
+            val actualEndX = if (sliderLocalX < 10f || distance < 10f) {
+                targetLocalX.coerceAtMost(actualStartX + targetLocalX.coerceAtLeast(50f))
+            } else {
+                actualStartX + distance
+            }; val actualEndY = actualStartY
             Log.record(TAG, "命中滑块手柄: bounds=(${sliderHandle.left},${sliderHandle.top},${sliderHandle.right},${sliderHandle.bottom}), center=(${sliderHandle.centerX.toInt()},${sliderHandle.centerY.toInt()})")
             Log.record(TAG, "实际滑动参数: 起点=(${actualStartX.toInt()},${actualStartY.toInt()}), 终点=(${actualEndX.toInt()},${actualEndY.toInt()}), 距离=${distance.toInt()}px")
             val beforeSnapshot = CaptchaVisualSnapshot(fullBitmap, croppedBitmap, recognitionResult)
