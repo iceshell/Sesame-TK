@@ -1,9 +1,7 @@
 name: 📦Auto Build for N
 run-name: 📦 ${{ github.actor }} @ Github Action
-# 赋予读写Release权限
 permissions:
   contents: write
-# 触发规则：推送main、手动运行、打tag、发布Release
 on:
   push:
     branches: [ "main" ]
@@ -43,17 +41,15 @@ jobs:
       - name: ☎️ Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: 🧹 Clean Gradle Cache (Optional)
+      - name: 🧹 Clean Gradle Cache
         run: ./gradlew clean
         continue-on-error: true
 
       - name: 🔥 Build with Gradle
         run: |
-          # 处理版本号：Tag触发用Tag名，否则用提交哈希
-          VERSION=${{ github.ref_name != '' ? github.ref_name : github.sha }}
+          VERSION=${{ coalesce(github.ref_name, github.sha) }}
           ./gradlew assembleRelease -Pversion=$VERSION
         env:
-          # 增加构建日志详细度
           ORG_GRADLE_PROJECT_ci: true
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true"
 
@@ -61,21 +57,12 @@ jobs:
         id: locate_apks
         run: |
           release_dir="app/build/outputs/apk/release"
-          # 优化查找逻辑，为空时赋值空字符串
           arm64_apk=$(find "$release_dir" -name "*-arm64-v8a-*.apk" | head -n 1 || true)
           armv7_apk=$(find "$release_dir" -name "*-armeabi-v7a-*.apk" | head -n 1 || true)
           x86_apk=$(find "$release_dir" -name "*-x86-*.apk" | head -n 1 || true)
           x86_64_apk=$(find "$release_dir" -name "*-x86_64-*.apk" | head -n 1 || true)
           universal_apk=$(find "$release_dir" -name "*-universal-*.apk" | head -n 1 || true)
           
-          # 输出找到的APK路径（便于调试）
-          echo "Found arm64 APK: $arm64_apk"
-          echo "Found armv7 APK: $armv7_apk"
-          echo "Found x86 APK: $x86_apk"
-          echo "Found x86_64 APK: $x86_64_apk"
-          echo "Found universal APK: $universal_apk"
-          
-          # 设置输出变量，为空则赋值空字符串
           echo "arm64_apk=${arm64_apk:-}" >> $GITHUB_OUTPUT
           echo "armv7_apk=${armv7_apk:-}" >> $GITHUB_OUTPUT
           echo "x86_apk=${x86_apk:-}" >> $GITHUB_OUTPUT
@@ -85,14 +72,11 @@ jobs:
       - name: ⏳ Copy APKs to staging for signing
         run: |
           mkdir -p app/build/outputs/apk/all
-          # 仅拷贝存在的APK，避免空文件报错
           [ -n "${{ steps.locate_apks.outputs.arm64_apk }}" ] && cp "${{ steps.locate_apks.outputs.arm64_apk }}" app/build/outputs/apk/all/
           [ -n "${{ steps.locate_apks.outputs.armv7_apk }}" ] && cp "${{ steps.locate_apks.outputs.armv7_apk }}" app/build/outputs/apk/all/
           [ -n "${{ steps.locate_apks.outputs.x86_apk }}" ] && cp "${{ steps.locate_apks.outputs.x86_apk }}" app/build/outputs/apk/all/
           [ -n "${{ steps.locate_apks.outputs.x86_64_apk }}" ] && cp "${{ steps.locate_apks.outputs.x86_64_apk }}" app/build/outputs/apk/all/
           [ -n "${{ steps.locate_apks.outputs.universal_apk }}" ] && cp "${{ steps.locate_apks.outputs.universal_apk }}" app/build/outputs/apk/all/
-          # 列出拷贝结果
-          ls -la app/build/outputs/apk/all/
 
       - name: 🔐 Sign APKs
         id: sign_apks
@@ -108,19 +92,16 @@ jobs:
       - name: 📦 Extract Signed APK Paths
         id: extract_apks
         run: |
-          # 初始化输出变量为空
           echo "signed_arm64=" >> $GITHUB_OUTPUT
           echo "signed_armv7=" >> $GITHUB_OUTPUT
           echo "signed_x86=" >> $GITHUB_OUTPUT
           echo "signed_x86_64=" >> $GITHUB_OUTPUT
           echo "signed_universal=" >> $GITHUB_OUTPUT
           
-          # 处理签名后的文件列表
           if [ -n "${{ steps.sign_apks.outputs.signedFiles }}" ]; then
             IFS=':' read -r -a files <<< "${{ steps.sign_apks.outputs.signedFiles }}"
             for file in "${files[@]}"; do
               if [[ -f "$file" ]]; then
-                echo "Processing signed file: $file"
                 if [[ "$file" == *arm64-v8a* ]]; then
                   echo "signed_arm64=$file" >> $GITHUB_OUTPUT
                 elif [[ "$file" == *armeabi-v7a* ]]; then
@@ -136,14 +117,13 @@ jobs:
             done
           fi
 
-      # 上传APK - 仅当文件存在时执行
       - name: 🚀 Upload APK - arm64-v8a
         if: steps.extract_apks.outputs.signed_arm64 != ''
         uses: actions/upload-artifact@v4
         with:
           name: apk-arm64-v8a
           path: ${{ steps.extract_apks.outputs.signed_arm64 }}
-          retention-days: 7 # 保留7天，可按需调整
+          retention-days: 7
 
       - name: 🚀 Upload APK - armeabi-v7a
         if: steps.extract_apks.outputs.signed_armv7 != ''
@@ -180,21 +160,18 @@ jobs:
       - name: 🛠️ Extract file names and version
         id: extract_info
         run: |
-          # 处理版本号：Tag触发用Tag名，否则用短提交哈希
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
             VERSION="${{ github.ref_name }}"
           else
             VERSION="build-$(echo ${{ github.sha }} | cut -c1-7)"
           fi
           
-          # 提取文件名（为空则赋值空）
           arm64_file=$(basename "${{ steps.extract_apks.outputs.signed_arm64 }}" 2>/dev/null || true)
           armv7_file=$(basename "${{ steps.extract_apks.outputs.signed_armv7 }}" 2>/dev/null || true)
           x86_file=$(basename "${{ steps.extract_apks.outputs.signed_x86 }}" 2>/dev/null || true)
           x86_64_file=$(basename "${{ steps.extract_apks.outputs.signed_x86_64 }}" 2>/dev/null || true)
           universal_file=$(basename "${{ steps.extract_apks.outputs.signed_universal }}" 2>/dev/null || true)
           
-          # 设置输出变量
           echo "arm64_file=${arm64_file:-}" >> $GITHUB_OUTPUT
           echo "armv7_file=${armv7_file:-}" >> $GITHUB_OUTPUT
           echo "x86_file=${x86_file:-}" >> $GITHUB_OUTPUT
@@ -204,56 +181,11 @@ jobs:
 
       - name: 🎨 Generate APKS Checksum
         run: |
-          # 仅为存在的文件生成校验和
           [ -n "${{ steps.extract_apks.outputs.signed_arm64 }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_arm64 }} > CHECKSUMS-Sesame-arm64-v8a-${{ steps.extract_info.outputs.version }}.apk.sha256
           [ -n "${{ steps.extract_apks.outputs.signed_armv7 }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_armv7 }} > CHECKSUMS-Sesame-armeabi-v7a-${{ steps.extract_info.outputs.version }}.apk.sha256
           [ -n "${{ steps.extract_apks.outputs.signed_x86 }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_x86 }} > CHECKSUMS-Sesame-x86-${{ steps.extract_info.outputs.version }}.apk.sha256
           [ -n "${{ steps.extract_apks.outputs.signed_x86_64 }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_x86_64 }} > CHECKSUMS-Sesame-x86_64-${{ steps.extract_info.outputs.version }}.apk.sha256
           [ -n "${{ steps.extract_apks.outputs.signed_universal }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_universal }} > CHECKSUMS-Sesame-universal-${{ steps.extract_info.outputs.version }}.apk.sha256
-          # 列出校验和文件
-          ls -la *.sha256 || true
-
-      - name: 📝 Generate Dynamic Message
-        id: commit_info
-        shell: bash
-        run: |
-          # 初始化一个临时文件名
-          MESSAGE_FILE=$(mktemp)
-          
-          # 初始化默认消息
-          echo "手动触发构建/未知触发源" > "$MESSAGE_FILE"
-          
-          if [[ "${{ github.event_name }}" == "push" && -n '${{ toJSON(github.event.commits) }}' && '${{ toJSON(github.event.commits) }}' != 'null' && '${{ toJSON(github.event.commits) }}' != '[]' ]]; then
-            echo "Source: Push Event"
-            # 【修复】使用正确的 jq 语法截取 commit ID 前7个字符
-            echo '${{ toJSON(github.event.commits) }}' | jq -r '.[] | "• \(.message | split("\n")[0]) (<a href=\"\(.url)\">\(.id[0:7])</a>)"' > "$MESSAGE_FILE"
-          
-          elif [[ "${{ github.event_name }}" == "pull_request" && -n '${{ toJSON(github.event.pull_request) }}' && '${{ toJSON(github.event.pull_request) }}' != 'null' ]]; then
-            echo "Source: Pull Request Event"
-            PR_TITLE="${{ github.event.pull_request.title }}"
-            PR_URL="${{ github.event.pull_request.html_url }}"
-            API_URL="${{ github.event.pull_request.commits_url }}"
-          
-            # 写入 PR 标题
-            echo -e "<b>PR:</b> <a href=\"$PR_URL\">$PR_TITLE</a>\n\n<b>Commits:</b>" > "$MESSAGE_FILE"
-          
-            COMMITS_JSON=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-                                -H "Accept: application/vnd.github.v3+json" \
-                                "$API_URL")
-          
-            # 【修复】使用正确的 jq 语法截取 commit SHA 前7个字符
-            echo "$COMMITS_JSON" | jq -r 'if type == "array" then .[] | "• \(.commit.message | split("\n")[0]) (<a href=\"\(.html_url)\">\(.sha[0:7])</a>)" else "" end' >> "$MESSAGE_FILE"
-          fi
-          
-          # 使用 GitHub Actions 官方推荐的多行输出语法
-          {
-            echo "message_string<<EOF"
-            cat "$MESSAGE_FILE"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-          
-          # 清理临时文件
-          rm "$MESSAGE_FILE"
 
       - name: 🚀 Upload Assets to Source Release
         if: github.event_name == 'release' && github.event.action == 'published'
@@ -277,38 +209,17 @@ jobs:
           make_latest: true
           generate_release_notes: false
           body: |
-            
             > [!Important]
-            >
             > ## 模块的蓬勃生机离不开社区与群组,感谢各位的贡献🎉
-  
             > [!NOTE]
             > 你可以尝试点击下方图标加入我们的组织
-  
-            [![Telegram-Channel](https://img.shields.io/badge/Sesame--TK-nul?&logo=Telegram&label=Telegram-Channel&labelColor=fff&link=https%3A%2F%2Ft.me%2FSesame_TK_Channel)](https://t.me/Sesame_TK_Channel)   [![Telegram-Group](https://img.shields.io/badge/Sesame--TK-nul?&logo=Telegram&label=Telegram-Group&labelColor=fff&link=https%3A%2F%2Ft.me%2Ffansirsqi_xposed_sesame)](https://t.me/fansirsqi_xposed_sesame)   [![Static Badge](https://img.shields.io/badge/QQ--Channel-nul?style=flat&logo=qq&labelColor=%23fff&logoSize=12&label=%E8%85%BE%E8%AE%AF%E9%A2%91%E9%81%93&link=https%3A%2F%2Fpd.qq.com%2Fs%2Fhdvws4vuf)](https://pd.qq.com/s/hdvws4vuf)   [![Static Badge](https://img.shields.io/badge/QQ--Group-nul?style=flat&logo=qq&logoSize=12&label=QQ%E7%BE%A4%E8%81%8A&labelColor=%23fff&link=https%3A%2F%2Fqm.qq.com%2Fq%2FAj0Xby6AGQ)](https://qm.qq.com/q/Aj0Xby6AGQ)
-  
+            [![Telegram-Channel](https://img.shields.io/badge/Sesame--TK-nul?&logo=Telegram&label=Telegram-Channel&labelColor=fff&link=https%3A%2F%2Ft.me%2FSesame_TK_Channel)](https://t.me/Sesame_TK_Channel)
+            [![Telegram-Group](https://img.shields.io/badge/Sesame--TK-nul?&logo=Telegram&label=Telegram-Group&labelColor=fff&link=https%3A%2F%2Ft.me%2Ffansirsqi_xposed_sesame)](https://t.me/fansirsqi_xposed_sesame)
+            [![Static Badge](https://img.shields.io/badge/QQ--Channel-nul?style=flat&logo=qq&labelColor=%23fff&logoSize=12&label=%E8%85%BE%E8%AE%AF%E9%A2%91%E9%81%93&link=https%3A%2F%2Fpd.qq.com%2Fs%2Fhdvws4vuf)](https://pd.qq.com/s/hdvws4vuf)
+            [![Static Badge](https://img.shields.io/badge/QQ--Group-nul?style=flat&logo=qq&logoSize=12&label=QQ%E7%BE%A4%E8%81%8A&labelColor=%23fff&link=https%3A%2F%2Fqm.qq.com%2Fq%2FAj0Xby6AGQ)](https://qm.qq.com/q/Aj0Xby6AGQ)
             > ## 下载说明
             <b>- arm64-v8a:</b> 适用于64位ARM设备 (主流新手机)
             <b>- armeabi-v7a:</b> 适用于32位ARM设备 (旧款手机)
             <b>- x86 / x86_64:</b> 主要用于PC上的安卓模拟器
             <b>- universal:</b> 通用版 (不确定时使用，体积较大)
-            >
             > **如果不确定，请下载 `universal` 版本。**
-            
-            ## 本次更新记录
-            ${{ steps.commit_info.outputs.message_string }}
-
-      # 可选：构建失败通知（需配置钉钉/企业微信/飞书Webhook）
-      - name: 🚨 Notify Build Failure
-        if: failure()
-        run: |
-          echo "Build failed! Check the logs for details."
-          # 示例：钉钉通知（按需启用）
-          # curl 'https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN' \
-          #   -H 'Content-Type: application/json' \
-          #   -d '{
-          #     "msgtype": "text",
-          #     "text": {
-          #       "content": "Android构建失败\n仓库: ${{ github.repository }}\n运行ID: ${{ github.run_id }}\n链接: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          #     }
-          #   }'
