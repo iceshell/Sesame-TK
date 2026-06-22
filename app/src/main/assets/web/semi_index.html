@@ -131,7 +131,7 @@
                 window.setMode('dark');
             }
         };
-        const { useState, useEffect, useMemo, useRef } = React;
+        const { useState, useEffect, useMemo, useRef, useCallback } = React;
         const { Collapse, Switch, Input, RadioGroup, Radio, Button, Toast, SideSheet, Checkbox, InputNumber, Typography } = SemiUI;
         const { IconSearch } = SemiIcons;
         const { Title, Text } = Typography;
@@ -283,18 +283,16 @@
                 Toast.success("已保存列表设置");
             };
 
-            const toggleItem = (id, checked) => {
-                const newIds = new Set(selectedIds);
-                if (checked) {
-                    newIds.add(id);
-                    if (sheetConfig.type === 'SELECT_AND_COUNT' && selectedCounts[id] === undefined) {
-                        setSelectedCounts(prev => ({ ...prev, [id]: 1 }));
-                    }
-                } else {
-                    newIds.delete(id);
+            const toggleItem = useCallback((id, checked) => {
+                setSelectedIds(prev => {
+                    const newIds = new Set(prev);
+                    if (checked) newIds.add(id); else newIds.delete(id);
+                    return newIds;
+                });
+                if (checked && sheetConfig.type === 'SELECT_AND_COUNT' && selectedCounts[id] === undefined) {
+                    setSelectedCounts(prev => ({ ...prev, [id]: 1 }));
                 }
-                setSelectedIds(newIds);
-            };
+            }, [sheetConfig.type, selectedCounts]);
 
             const handleCountChange = (id, val) => {
                 setSelectedCounts(prev => ({ ...prev, [id]: val }));
@@ -317,8 +315,8 @@
                 setSelectedIds(newIds);
             };
 
-            // 渲染过滤后的列表 (注意：这里不再包含排序逻辑)
-            const renderSheetList = () => {
+            // 渲染过滤后的列表（useMemo：仅在依赖变化时重算）
+            const renderedSheetList = useMemo(() => {
                 const filtered = sheetList.filter(item => item.name.toLowerCase().includes(sheetSearch.toLowerCase()));
 
                 if (filtered.length === 0) return <div style={{ padding: 20, textAlign: 'center', color: '#999' }}>无数据</div>;
@@ -344,7 +342,7 @@
                         </div>
                     );
                 });
-            };
+            }, [sheetList, sheetSearch, selectedIds, selectedCounts, sheetConfig.type]);
 
             // --- 渲染主界面配置项 ---
             const renderFieldItem = (modelCode, item) => {
@@ -483,7 +481,7 @@
                             </div>
                         </div>
                         <div style={{ padding: '0 16px', overflowY: 'auto', height: 'calc(100vh - 180px)' }}>
-                            {renderSheetList()}
+                            {renderedSheetList}
                         </div>
                         <div className="sheet-footer" style={{ padding: '16px', justifyContent: 'space-around', position: 'absolute', bottom: 0, width: '100%', background: 'var(--semi-color-bg-1)' }}>
                             <Button style={{ marginRight: 10 }} onClick={() => setSheetVisible(false)}>取消</Button>
