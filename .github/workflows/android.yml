@@ -264,4 +264,4 @@ jobs:
             <b>- universal:</b> 通用版 (不确定时使用，体积较大)
             >
             > **如果不确定，请下载 `universal` 版本。**
-        token: ${{ secrets.TARGET_REPO_PAT }}
+          token: ${{ secrets.TARGET_REPO_PAT }}
