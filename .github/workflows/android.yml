@@ -198,14 +198,20 @@ jobs:
           [ -n "${{ steps.extract_apks.outputs.signed_universal }}" ] && sha256sum ${{ steps.extract_apks.outputs.signed_universal }} > CHECKSUMS-Sesame-universal-${VERSION}.apk.sha256
 
       - name: 🚀 Upload Assets to Source Release
-        # 触发条件：推送v开头Tag 或 手动网页发布Release
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release' && github.event.action == 'published'
+        # 移除tag限制，push main也执行更新
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          # Release标题：v + 完整版本号（带提交次数）
+          # 固定复用你现有的 v0.9.9 标签，持续覆盖更新
+          tag_name: v0.9.9
+          # 标题显示带提交次数的完整版本号
           name: v${{ steps.version.outputs.full_version }}
-          # Release标签沿用你推送的Tag名（如v0.9.9）
-          tag_name: ${{ github.ref_name }}
+          # 开启覆盖，删除旧附件，始终保持最新包
+          overwrite_files: true
+          delete_assets: true
+          draft: false
+          make_latest: true
+          generate_release_notes: false
           files: |
             ${{ steps.extract_apks.outputs.signed_arm64 }}
             ${{ steps.extract_apks.outputs.signed_armv7 }}
@@ -217,10 +223,6 @@ jobs:
             CHECKSUMS-Sesame-x86-${{ steps.version.outputs.full_version }}.apk.sha256
             CHECKSUMS-Sesame-x86_64-${{ steps.version.outputs.full_version }}.apk.sha256
             CHECKSUMS-Sesame-universal-${{ steps.version.outputs.full_version }}.apk.sha256
-          draft: false
-          append_body: true
-          make_latest: true
-          generate_release_notes: false
           body: |
             > [!Important]
             > ## 模块的蓬勃生机离不开社区与群组,感谢各位的贡献🎉
