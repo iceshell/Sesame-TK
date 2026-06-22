@@ -238,7 +238,9 @@ class AntOrchard : ModelTask() {
         try {
             AntOrchardRpcCall.switchPlantScene(targetScene)
             CoroutineUtils.sleepCompat(500)
-        } catch (ignore: Throwable) {}
+        } catch (ignore: Throwable) {
+            Log.record(TAG, "switchPlantScene跳过(非关键操作): ${ignore.message}")
+        }
 
         val sourceList = listOf(
             "DNHZ_NC_zhimajingnangSF",

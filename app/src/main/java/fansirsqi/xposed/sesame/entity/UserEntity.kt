@@ -37,28 +37,6 @@ data class UserEntity(
      */
     val fullName: String
 
-    // 初始化块，处理复杂的格式化逻辑
-//    init {
-//        // 处理遮掩名称
-//        // 修复逻辑：处理 realName 为 null 的情况，避免显示 "null"
-//        val safeRealName = realName ?: ""
-//        val maskNameTmp = if (safeRealName.length > 1) {
-//            "*" + safeRealName.substring(1)
-//        } else {
-//            safeRealName
-//        }
-//
-//        // 格式化输出
-//        // 修复逻辑：如果 maskNameTmp 为空，不要拼接 "|"，或者根据你的需求保留格式
-//        // 原逻辑是直接拼接，这里保持原逻辑但去除了 "null" 字符串
-//        this.maskName = "$showName|$maskNameTmp"
-//
-//        // 修复逻辑：处理 account 为 null 的情况
-//        val safeAccount = account ?: ""
-//        this.fullName = "$showName|$safeRealName($safeAccount)"
-//    }
-
-
     init {
         val safeRealName = realName ?: ""
 

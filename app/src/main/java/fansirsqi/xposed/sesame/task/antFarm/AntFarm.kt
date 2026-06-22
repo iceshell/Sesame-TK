@@ -1168,22 +1168,6 @@ class AntFarm : ModelTask() {
      */
     private suspend fun handleAutoFeedAnimal(isChildTask: Boolean = false) {
 
-//        val sleepTimeStr = sleepTime!!.value
-//        if (sleepTimeStr != "-1") {
-//            val now = TimeUtil.getNow()
-//            val sleepCal = TimeUtil.getTodayCalendarByTimeStr(sleepTimeStr)
-//            // 如果当前时间在睡觉时间之前，且差距小于 30 分钟
-//            if (now.before(sleepCal) && (sleepCal.timeInMillis - now.timeInMillis) < 30 * 60 * 1000) {
-//                Log.record(TAG, "马上要睡觉了，暂不投喂，让它饿着吧")
-//                return
-//            }
-//            // 如果已经过了睡觉时间，理论上也不应该喂，但原逻辑会在后面 animalSleepAndWake 处理睡觉
-//            if (now.after(sleepCal)) {
-//                Log.record(TAG, "已过睡觉时间，暂不投喂")
-//                return
-//            }
-//        }
-
         if (AnimalInteractStatus.HOME.name != ownerAnimal.animalInteractStatus) {
             return  // 小鸡不在家，不执行喂养逻辑
         }
@@ -2263,7 +2247,9 @@ class AntFarm : ModelTask() {
                                     }
                                 }
                             }
-                        } catch (_: Exception) { }
+                        } catch (_: Exception) {
+                            Log.record(TAG, "农场游戏奖励解析跳过: 非关键操作")
+                        }
 
                         val haveEnoughSpace = if (needFarmGame) foodSpace > gameRewardMax!!.value else foodSpace >= awardCount
                         val shouldSign = signRegardless!!.value || timeReached || haveEnoughSpace

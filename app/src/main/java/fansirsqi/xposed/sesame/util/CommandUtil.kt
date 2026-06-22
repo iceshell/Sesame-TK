@@ -180,7 +180,9 @@ object CommandUtil {
                 if (!success) {
                     Log.e(TAG, "❌ 绑定超时")
                     // 超时解绑
-                    try { context.applicationContext.unbindService(serviceConnection) } catch (_: Exception) {}
+                    try { context.applicationContext.unbindService(serviceConnection) } catch (_: Exception) {
+                        Log.d(TAG, "超时解绑unbindService异常(忽略)")
+                    }
                     _serviceStatus.value = ServiceStatus.Error("连接超时")
                 }
 
@@ -234,7 +236,9 @@ object CommandUtil {
         if (isBound.compareAndSet(true, false)) {
             try {
                 // 尝试注销监听器 (忽略异常，因为服务可能已死)
-                try { commandService?.unregisterListener(statusListener) } catch (_: Exception) {}
+                try { commandService?.unregisterListener(statusListener) } catch (_: Exception) {
+                    Log.d(TAG, "注销监听器异常(服务可能已死)")
+                }
 
                 context.applicationContext.unbindService(serviceConnection)
                 Log.d(TAG, "已解绑服务")
