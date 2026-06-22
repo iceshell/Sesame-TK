@@ -175,22 +175,15 @@ abstract class ModelTask : Model() {
         val job = CoroutineScope(currentCoroutineContext()).launch {
             try {
                 childTask.run()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                val taskName = getName() ?: "未知任务"
+                Log.record("子任务协程被取消: $taskName-$childId")
+                throw e // 重新抛出以保持协程取消语义
             } catch (e: Exception) {
                 val taskName = getName() ?: "未知任务"
-                // 检查是否是协程取消相关的异常
-                if (e.javaClass.name.contains("CancellationException") || 
-                    e.message?.contains("cancelled") == true ||
-                    e.message?.contains("StandaloneCoroutine") == true) {
-                    Log.record("子任务协程被取消: $taskName-$childId - ${e.message}")
-                    // 协程取消是正常现象，不需要打印堆栈
-                } else {
-                    Log.printStackTrace("addChildTaskSuspend 子任务执行异常1: $taskName-$childId", e)
-                }
+                Log.printStackTrace("addChildTaskSuspend 子任务执行异常1: $taskName-$childId", e)
             } finally {
-//                childTaskMap.remove(childId)
                 childTaskMap.remove(childTask.id, childTask)
-
-
             }
         }
 
@@ -510,20 +503,15 @@ abstract class ModelTask : Model() {
                 Log.record("子任务被取消: $parentTaskName-$id")
                 // 不重新抛出异常，让任务正常结束
                 return
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                isCancelled = true
+                val parentTaskName = modelTask?.getName() ?: "未知任务"
+                Log.record("子任务协程被取消: $parentTaskName-$id")
+                return
             } catch (e: Exception) {
                 val parentTaskName = modelTask?.getName() ?: "未知任务"
-                // 检查是否是协程取消相关的异常
-                if (e.javaClass.name.contains("CancellationException") ||
-                    e.message?.contains("cancelled") == true ||
-                    e.message?.contains("StandaloneCoroutine") == true) {
-                    isCancelled = true
-                    Log.record("子任务协程被取消: $parentTaskName-$id - ${e.message}")
-                    // 协程取消是正常现象，不需要打印堆栈
-                    return
-                } else {
-                    Log.printStackTrace("run err: $parentTaskName-$id", e)
-                    throw e
-                }
+                Log.printStackTrace("run err: $parentTaskName-$id", e)
+                throw e
             } finally {
                 // 【关键】确保无论发生什么情况，只要加了计数就必须减掉
                 if (isCounted) {

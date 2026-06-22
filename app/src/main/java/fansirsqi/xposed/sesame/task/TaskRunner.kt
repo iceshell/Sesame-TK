@@ -37,8 +37,6 @@ class CoroutineTaskRunner(allModels: List<Model>) {
         // 最大并发数，防止请求过于频繁触发风控
         // 可以做成配置项，目前硬编码为 3
         private const val MAX_CONCURRENCY = 3
-
-        private val TIMEOUT_WHITELIST = setOf("森林", "庄园", "运动")
     }
 
     private val taskList: List<ModelTask> = allModels.filterIsInstance<ModelTask>()
@@ -61,7 +59,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
 
         // 【互斥检查】如果手动任务流正在运行，则跳过本次自动执行
         if (ManualTask.isManualRunning) {
-            Log.record(TAG, "⏸ 检测到“手动庄园任务流”正在运行中，跳过本次自动任务调度")
+            Log.record(TAG, "⏸ 检测到[手动庄园任务流]正在运行中，跳过本次自动任务调度")
             return@coroutineScope
         }
 
@@ -152,30 +150,13 @@ class CoroutineTaskRunner(allModels: List<Model>) {
         val taskId = "$taskName-R$round"
         val startTime = System.currentTimeMillis()
 
-        val isWhitelist = TIMEOUT_WHITELIST.contains(taskName)
-
-        // 如果是白名单任务（如森林），它们往往是“启动后即视为完成”，或者是长运行任务
-        // 我们可以给一个较短的“启动超时时间”，而不是等待整个任务结束
-        val timeout = if (isWhitelist) 30_000L else DEFAULT_TASK_TIMEOUT
-
         try {
             Log.record(TAG, "▶️ 启动: $taskId")
             task.addRunCents()
 
-            withTimeout(timeout) {
-                // startTask 是一个 suspend 函数，或者返回一个 Job
-                // 假设 task.startTask 现在是 suspend 的，或者我们 wrap 一下
+            withTimeout(DEFAULT_TASK_TIMEOUT) {
                 val job = task.startTask(force = false, rounds = 1)
-
-                // 如果是白名单任务，我们只等待它启动成功（job active），不 join
-                if (isWhitelist) {
-                    if (job.isActive) {
-                        Log.record(TAG, "✨ $taskId 启动成功 (后台运行中)")
-                        return@withTimeout
-                    }
-                }
-
-                // 普通任务等待完成
+                // 所有任务统一等待完成，确保任务正确执行和统计
                 job.join()
             }
 
@@ -187,19 +168,10 @@ class CoroutineTaskRunner(allModels: List<Model>) {
 
         } catch (e: TimeoutCancellationException) {
             val time = System.currentTimeMillis() - startTime
-
-            if (isWhitelist) {
-                // 白名单任务超时通常意味着它还在后台跑，视作成功
-                successCount.incrementAndGet()
-                taskExecutionTimes[taskId] = time
-                Log.record(TAG, "✅ $taskId 已运行 ${time}ms (后台继续)")
-            } else {
-                // 普通任务超时 -> 失败
-                failureCount.incrementAndGet()
-                Log.error(TAG, "⏰ 超时: $taskId (${time}ms > ${timeout}ms)")
-                // 尝试停止任务
-                task.stopTask()
-            }
+            // 超时视为失败并停止任务，避免后台残留协程继续消耗资源
+            failureCount.incrementAndGet()
+            Log.error(TAG, "⏰ 超时: $taskId (${time}ms > ${DEFAULT_TASK_TIMEOUT}ms)")
+            task.stopTask()
 
         } catch (e: Exception) {
             val time = System.currentTimeMillis() - startTime

@@ -296,6 +296,7 @@ object Credit2101 {
             var shiftCount = 0
 
             var failExploreCount = 0
+            val maxFailExploreCount = 3 // 连续探测失败熔断阈值
 
             handleVisitRecover()        //时段恢复
 
@@ -350,18 +351,31 @@ object Credit2101 {
                 }
 
                 // 2️⃣ 探测新事件
-                val found = exploreOnce(cityCode, currentLat, currentLng)
+                val exploreResult = exploreOnce(cityCode, currentLat, currentLng)
 
-                if (found) {
-                    // 探测到事件，下轮重新查询处理
-                    failExploreCount = 0
-                    shiftCount = 0
-                    //Log.record("探测到事件")
-                    continue
+                when (exploreResult) {
+                    ExploreResult.FOUND -> {
+                        failExploreCount = 0
+                        shiftCount = 0
+                        continue
+                    }
+                    ExploreResult.SYSTEM_ERROR -> {
+                        Log.record(TAG, "信用2101🔍[结束] 服务端系统错误(error:3000)，停止探测避免无效请求")
+                        break
+                    }
+                    ExploreResult.NO_EVENT -> {
+                        // 无事件，继续到移动位置逻辑
+                    }
                 }
 
                 // 3️⃣ 探测失败 → 移动位置
                 failExploreCount++
+
+                // 连续探测失败熔断：避免无意义地反复移动位置
+                if (failExploreCount >= maxFailExploreCount) {
+                    Log.record(TAG, "信用2101🔍[结束] 连续探测失败 $failExploreCount 次，停止探测")
+                    break
+                }
 
                 val (nLat, nLng) = shiftLocation(currentLat, currentLng)
                 currentLat = nLat
@@ -1769,26 +1783,40 @@ object Credit2101 {
             return EventResult.Failed
         }
     }
-    /** 探测一次事件 */
-    private fun exploreOnce(cityCode: String, latitude: Double, longitude: Double): Boolean {
-        val resp = Credit2101RpcCall.exploreGridEvent(cityCode, latitude, longitude)
-        if (!ResChecker.checkRes(TAG, resp)) {
-            Log.error(TAG, "信用2101🔍[探测失败][城市代码:$cityCode| $latitude/ $longitude] $resp")
-            return false
-        }
+    /** 探测结果枚举 */
+    private enum class ExploreResult {
+        FOUND,          // 探测到事件
+        NO_EVENT,       // 无事件（正常）
+        SYSTEM_ERROR    // 系统错误（如 error:3000），应立即停止
+    }
 
+    /** 探测一次事件 */
+    private fun exploreOnce(cityCode: String, latitude: Double, longitude: Double): ExploreResult {
+        val resp = Credit2101RpcCall.exploreGridEvent(cityCode, latitude, longitude)
+
+        // 先解析 JSON 检测系统级错误（error:3000），避免被 ResChecker 当普通失败处理
         val root = runCatching { JSONObject(resp) }.getOrElse {
             Log.printStackTrace(TAG, it)
-            return false
+            return ExploreResult.SYSTEM_ERROR
         }
 
+        // 检测服务端系统错误（error=3000 或 errorNo=3 表示"系统出错，正在排查"）
+        if (root.optInt("error", -1) == 3000 || root.optInt("errorNo", -1) == 3) {
+            Log.error(TAG, "信用2101🔍[系统错误] 服务端异常(error:3000)，停止探测")
+            return ExploreResult.SYSTEM_ERROR
+        }
+
+        if (!ResChecker.checkRes(TAG, resp)) {
+            Log.error(TAG, "信用2101🔍[探测失败][城市代码:$cityCode| $latitude/ $longitude] $resp")
+            return ExploreResult.NO_EVENT
+        }
 
         val list = root.optJSONArray("eventExploreVOList")
         val count = list?.length() ?: 0
 
         if (count <= 0) {
             Log.record(TAG, "信用2101🔍[探测] 本次未发现新事件")
-            return false
+            return ExploreResult.NO_EVENT
         }
 
         val types = mutableSetOf<String>()
@@ -1799,7 +1827,7 @@ object Credit2101 {
         }
 
         Log.other("信用2101🔍[探测成功] 新事件$count 个，类型=${types.joinToString(",")}")
-        return true
+        return ExploreResult.FOUND
     }
 
     /** 自动合成领取图鉴 */

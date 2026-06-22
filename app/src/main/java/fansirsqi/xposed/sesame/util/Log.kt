@@ -16,6 +16,7 @@ object Log {
 
     // 错误去重机制
     private val errorCountMap = ConcurrentHashMap<String, AtomicInteger>()
+    private const val MAX_ERROR_MAP_SIZE = 200 // 防止无限增长
 
     // Logger 实例
     private val RECORD_LOGGER: Logger
@@ -148,6 +149,11 @@ object Log {
     private fun shouldPrintError(th: Throwable?): Boolean {
         if (th == null) return false
 
+        // 防止 errorCountMap 无限增长
+        if (errorCountMap.size > MAX_ERROR_MAP_SIZE) {
+            errorCountMap.clear()
+        }
+
         // 提取错误特征
         var errorSignature = th.javaClass.simpleName + ":" +
                 (th.message?.take(50) ?: "null")
@@ -173,7 +179,7 @@ object Log {
     @JvmStatic
 
     fun printStackTrace(th: Throwable) {
-        if (shouldPrintError(th)) return
+        if (!shouldPrintError(th)) return
         val stackTrace = "error: " + android.util.Log.getStackTraceString(th)
         error(stackTrace)
     }
@@ -181,14 +187,14 @@ object Log {
     @JvmStatic
 
     fun printStackTrace(msg: String, th: Throwable) {
-        if (shouldPrintError(th)) return
+        if (!shouldPrintError(th)) return
         val stackTrace = "Throwable error: " + android.util.Log.getStackTraceString(th)
         error(msg, stackTrace)
     }
 
     @JvmStatic
     fun printStackTrace(tag: String, msg: String, th: Throwable) {
-        if (shouldPrintError(th)) return
+        if (!shouldPrintError(th)) return
         val stackTrace = "[$tag] Throwable error: " + android.util.Log.getStackTraceString(th)
         error(msg, stackTrace)
     }

@@ -12,6 +12,15 @@
 -dontwarn com.niki.**
 
 
+# ---------- OkHttp ----------
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class okio.** { *; }
+
 # ---------- 日志 ----------
 -keep class ch.qos.logback.** { *; }
 -keep class org.slf4j.** { *; }
@@ -31,3 +40,6 @@
 -keepnames class * implements java.io.Serializable
 -keepclassmembers class * implements java.io.Serializable { *; }
 -dontwarn java.beans.ConstructorProperties, java.beans.Transient
+
+# ---------- TensorFlow Lite (R8 缺失类) ----------
+-dontwarn org.tensorflow.lite.gpu.**

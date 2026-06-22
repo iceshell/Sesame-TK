@@ -389,6 +389,10 @@ class AntSports : ModelTask() {
                         } else {
                             Log.error(TAG, "同步运动步数失败:$step")
                         }
+                    } catch (e: NoSuchMethodError) {
+                        // 支付宝更新后 RpcManager 方法签名变更，标记今日已同步避免重复报错
+                        Log.record(TAG, "步数同步跳过: RpcManager 方法签名不兼容")
+                        Status.setFlagToday(StatusFlags.FLAG_ANTSPORTS_SYNC_STEP_DONE)
                     } catch (t: Throwable) {
                         Log.printStackTrace(TAG, t)
                     }

@@ -188,7 +188,7 @@ object AssetUtil {
                 }
             }
         } catch (e: Exception) {
-            Log.error(TAG, "Failed to copy Asset file: " + e.message)
+            Log.record(TAG, "Asset copy skipped (file may be loaded externally): $assetName - ${e.message}")
             return false
         }
     }

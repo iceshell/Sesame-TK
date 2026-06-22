@@ -113,11 +113,11 @@ object UserMap {
     @JvmStatic
     @Synchronized
     fun load(userId: String?) {
-        userMap.clear()
         if (userId.isNullOrEmpty()) {
             Log.error(TAG, "Skip loading user map for empty userId")
             return
         }
+        val tempMap = LinkedHashMap<String, UserEntity>()
         try {
             val friendIdMapFile = Files.getFriendIdMapFile(userId)
             if (friendIdMapFile == null) {
@@ -133,15 +133,18 @@ object UserMap {
                 )
 
                 dtoMap?.values?.forEach { dto ->
-                    // 再次确保 Key 和 Value 不为 null
                     val uid = dto.userId
                     val entity = dto.toEntity()
                     if (!uid.isNullOrEmpty()) {
-                        userMap[uid] = entity
+                        tempMap[uid] = entity
                     }
                 }
             }
+            // 加载成功后才替换主Map，避免加载失败导致数据丢失
+            userMap.clear()
+            userMap.putAll(tempMap)
         } catch (e: Exception) {
+            Log.error(TAG, "UserMap加载失败(JSON数据损坏)，保留现有数据: ${e.message}")
             Log.printStackTrace(e)
         }
     }

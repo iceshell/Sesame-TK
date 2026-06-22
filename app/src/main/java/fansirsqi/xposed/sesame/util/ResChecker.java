@@ -12,6 +12,11 @@ public class ResChecker {
 
     private static boolean core(String TAG, JSONObject jo) {
         try {
+            // 优先检测全局风控(error:1009)，触发后停止所有后续请求
+            if (jo.optInt("error", -1) == 1009) {
+                RiskControlDetector.checkRiskControl(jo);
+                return false;
+            }
 //            Log.runtime(TAG, "Checking JSON success: " + jo);
             // 检查 success 或 isSuccess 字段为 true
             if (jo.optBoolean("success") || jo.optBoolean("isSuccess")) {

@@ -16,7 +16,7 @@ var isCIBuild: Boolean = System.getenv("CI").toBoolean()
 
 android {
     namespace = "fansirsqi.xposed.sesame"
-    compileSdk = 36
+    compileSdk = 37
     packaging {
         jniLibs {
             useLegacyPackaging = true
@@ -39,7 +39,7 @@ android {
         vectorDrawables.useSupportLibrary = true
         applicationId = "fansirsqi.xposed.sesame"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
 
         val buildDate = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).apply {
             timeZone = TimeZone.getTimeZone("GMT+8")
@@ -49,7 +49,7 @@ android {
             timeZone = TimeZone.getTimeZone("GMT+8")
         }.format(Date())
 
-        versionCode = gitCommitCount
+        versionCode = gitCommitCount + 1
         versionName = "0.9.9"
 
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
@@ -74,7 +74,7 @@ android {
         buildConfig = true
         compose = true
         aidl = true
-        mlModelBinding = true
+        mlModelBinding = true  // 启用模型绑定: slider.tflite通过Slider.newInstance()稳定加载
     }
 
     compileOptions {
@@ -164,8 +164,8 @@ dependencies {
     // 生命周期和数据绑定
     implementation(libs.androidx.lifecycle.viewmodel.compose) // Compose ViewModel 支持
 
-    // JSON 序列化
-    implementation(libs.kotlinx.serialization.json) // Kotlin JSON 序列化库
+
+
 
     // Kotlin 协程依赖 - 异步编程（纯协程调度）
     implementation(libs.kotlinx.coroutines.core)     // 协程核心库

@@ -90,4 +90,32 @@ public final class StatusFlags {
     public static final String FLAG_ANTSTALL_THROW_MANURE_LIMIT =
             "Flag_AntStall_Throw_Manure_Limit";
 
+    // ============================================================
+    // 全局风控
+    // ============================================================
+
+    /** 全局：今日是否触发支付宝风控验证(error:1009)，触发后暂停所有 RPC */
+    public static final String FLAG_GLOBAL_RISK_CONTROL_TRIGGERED =
+            "Flag_Global_Risk_Control_Triggered";
+
+    // ============================================================
+    // AntMember 业务错误跳过标记
+    // ============================================================
+
+    /** 芝麻炼金：需先完成提现，当日跳过 */
+    public static final String FLAG_ANTMEMBER_ALCHEMY_MUST_WITHDRAW =
+            "Flag_AntMember_Alchemy_MustWithdraw";
+
+    /** 芝麻炼金：生活记录模板不存在，当日跳过 */
+    public static final String FLAG_ANTMEMBER_ALCHEMY_TEMPLATE_NOT_EXIST =
+            "Flag_AntMember_Alchemy_TemplateNotExist";
+
+    /** 芝麻信用任务：当天完成次数超限，当日跳过 */
+    public static final String FLAG_ANTMEMBER_TASK_TIMES_LIMIT =
+            "Flag_AntMember_Task_TimesLimit";
+
+    /** 芝麻树：已满级，当日跳过 */
+    public static final String FLAG_ANTMEMBER_ZHIMA_TREE_MAX_LEVEL =
+            "Flag_AntMember_ZhimaTree_MaxLevel";
+
 }

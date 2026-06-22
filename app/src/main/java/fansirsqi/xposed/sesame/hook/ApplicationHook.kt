@@ -243,7 +243,8 @@ class ApplicationHook {
                         AlipayMiniMarkHelper.init(classLoader!!)
                         LocationHelper.init(classLoader!!)
                         AuthCodeHelper.init(classLoader!!)
-                        AuthCodeHelper.getAuthCode("2021005114632037" )
+                        // 注意：AuthCodeHelper.getAuthCode 延迟到 initHandler() 中调用，
+                        // 因为此处 attach 阶段 Oauth2AuthCodeFacade 尚未初始化，会导致 NPE
 
                         initVersionInfo(packageName)
                         loadLibs()
@@ -288,7 +289,12 @@ class ApplicationHook {
                 "onResume",
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam?) {
-                        val targetUid = HookUtil.getUserId(classLoader!!)
+                        val targetUid = try {
+                            HookUtil.getUserId(classLoader!!)
+                        } catch (t: Throwable) {
+                            // getUserId 可能在 Service 尚未完全初始化时 NPE，静默跳过
+                            return
+                        }
                         if (targetUid == null) {
                             show("用户未登录")
                             return
@@ -720,6 +726,15 @@ class ApplicationHook {
                 HookUtil.hookUser(classLoader!!)
                 record(TAG, "芝麻粒-TK 开始初始化...")
 
+                // 在 Service 就绪后异步获取授权码（RPC 不能在主线程调用）
+                execute(Runnable {
+                    try {
+                        AuthCodeHelper.getAuthCode("2021005114632037")
+                    } catch (t: Throwable) {
+                        printStackTrace(TAG, "AuthCodeHelper.getAuthCode 异步调用失败", t)
+                    }
+                })
+
                 Config.load(userId)
                 if (!Config.isLoaded()) return false
 
@@ -868,12 +883,17 @@ class ApplicationHook {
 
         fun reOpenApp() {
             ensureScheduler()
+            // 防止重复调度同名"重新登录"任务（避免死循环）
+            if (SmartSchedulerManager.hasTask("重新登录")) {
+                return
+            }
             schedule(20000L, "重新登录") {
                 try {
                     val intent = Intent(Intent.ACTION_VIEW)
                     intent.setClassName(General.PACKAGE_NAME, General.CURRENT_USING_ACTIVITY)
                     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    offline = true
+                    // 恢复后将离线状态重置，让后续RPC正常执行
+                    offline = false
                     if (appContext != null) appContext!!.startActivity(intent)
                 } catch (e: Exception) {
                     error(TAG, "重启Activity失败: " + e.message)

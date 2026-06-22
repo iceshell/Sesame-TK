@@ -716,7 +716,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
                         // 只收能量时间段，启用循环查找能量功能
                         Log.record(TAG, "👥 开始执行查找能量...")
                         try {
-                            quickcollectEnergyByTakeLook() // 查找能量（协程）
+                            quickCollectEnergyByTakeLook() // 查找能量（协程）
                         } catch (e: CancellationException) {
                             Log.record(TAG, "查找能量被取消，退出循环")
                             break
@@ -2254,7 +2254,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
     /**
      * 7点-7点30分快速收取能量，跳过道具判断
      */
-    private fun quickcollectEnergyByTakeLook() {
+    private fun quickCollectEnergyByTakeLook() {
         // 1. 冷却检查
         val currentTime = System.currentTimeMillis()
         if (currentTime < nextTakeLookTime) {
@@ -2533,7 +2533,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
                 userHomeObj = collectEnergy(userId, queryFriendHome(userId, null), "friend")
             }
             if (needHelpProtect) {
-                val isProtected = isIsProtected(userId)
+                val isProtected = isProtected(userId)
                 /** lzw add end */
                 if (isProtected) {
                     if (userHomeObj == null) {
@@ -2556,7 +2556,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
         }
     }
 
-    private fun isIsProtected(userId: String?): Boolean {
+    private fun isProtected(userId: String?): Boolean {
         var isProtected: Boolean
         // Log.forest("is_monday:"+_is_monday);
         if (monday) {

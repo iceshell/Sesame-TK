@@ -5,7 +5,7 @@ pluginManagement {
         google()
     }
     plugins {
-        kotlin("jvm") version "2.2.21"  // 使用与libs.versions.toml中kotlin-plugin相同的版本
+        kotlin("jvm") version "2.4.0"  // 使用与libs.versions.toml中kotlin-plugin相同的版本
     }
 }
 

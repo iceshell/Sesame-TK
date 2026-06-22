@@ -22,6 +22,11 @@ object RequestManager {
     // 连续失败计数器
     private val errorCount = AtomicInteger(0)
 
+    // 防重入：离线恢复冷却时间戳
+    @Volatile
+    private var lastRecoveryAttemptTime = 0L
+    private const val RECOVERY_COOLDOWN_MS = 30_000L // 30秒内不重复触发恢复
+
     /**
      * 核心执行函数 (内联优化)
      * 流程：离线检查 -> 获取 Bridge -> 执行请求 -> 结果校验 -> 错误计数/重置
@@ -92,11 +97,15 @@ object RequestManager {
 
     /**
      * 处理离线恢复逻辑
-     * 可以是发送广播、拉起 App 等
+     * 带防重入保护：30秒内最多触发一次，避免死循环
      */
     private fun handleOfflineRecovery() {
-        // 防止短时间内频繁触发恢复逻辑 (可选)
-        // 这里简单实现：尝试拉起支付宝或发送重登录广播
+        val now = System.currentTimeMillis()
+        if (now - lastRecoveryAttemptTime < RECOVERY_COOLDOWN_MS) {
+            // 冷却期内，跳过重复触发
+            return
+        }
+        lastRecoveryAttemptTime = now
 
         Log.record(TAG, "正在尝试执行离线恢复策略...")
         // 策略 A: 重新拉起 App (推荐)

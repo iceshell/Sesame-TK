@@ -100,6 +100,7 @@ class BaseModel : Model() {
          * 任务执行轮数配置
          */
         @Getter
+        @JvmStatic
         val taskExecutionRounds: IntegerModelField = IntegerModelField("taskExecutionRounds", "任务执行轮数", 1, 1, 99) //1轮就好，没必要2轮
 
         /**
@@ -126,12 +127,14 @@ class BaseModel : Model() {
          * 能量收集的时间范围
          */
         @Getter
+        @JvmStatic
         val energyTime: ListJoinCommaToStringModelField = ListJoinCommaToStringModelField("energyTime", "只收能量时间(范围|关闭:-1)", ListUtil.newArrayList<String?>("0700-0730"))
 
         /**
          * 模块休眠时间范围
          */
         @Getter
+        @JvmStatic
         val modelSleepTime: ListJoinCommaToStringModelField =
             ListJoinCommaToStringModelField("modelSleepTime", "模块休眠时间(范围|关闭:-1)", ListUtil.newArrayList<String?>("0200-0201"))
 
@@ -145,21 +148,25 @@ class BaseModel : Model() {
          * 超时是否重启
          */
         @Getter
+        @JvmStatic
         val timeoutRestart: BooleanModelField = BooleanModelField("timeoutRestart", "超时重启", true)
 
         /**
          * 异常发生时的等待时间（分钟）
          */
         @Getter
+        @JvmStatic
         val waitWhenException: MultiplyIntegerModelField = MultiplyIntegerModelField("waitWhenException", "异常等待时间(分钟)", 60, 0, 24 * 60, 60000)
 
         /**
          * 异常通知开关
          */
         @Getter
+        @JvmStatic
         val errNotify: BooleanModelField = BooleanModelField("errNotify", "开启异常通知", false)
 
         @Getter
+        @JvmStatic
         val setMaxErrorCount: IntegerModelField = IntegerModelField("setMaxErrorCount", "异常次数阈值", 8)
 
         /**
@@ -212,6 +219,7 @@ class BaseModel : Model() {
          * 只显示中文并设置时区
          */
         @Getter
+        @JvmStatic
         val languageSimplifiedChinese: BooleanModelField = BooleanModelField("languageSimplifiedChinese", "只显示中文并设置时区", true)
 
         /**

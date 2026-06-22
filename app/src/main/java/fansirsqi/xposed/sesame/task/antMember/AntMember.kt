@@ -1868,6 +1868,20 @@ class AntMember : ModelTask() {
      */
     private suspend fun doSesameAlchemy(): Unit = CoroutineUtils.run {
         try {
+            // 跳过不可恢复的业务错误
+            if (hasFlagToday(StatusFlags.FLAG_ANTMEMBER_ALCHEMY_MUST_WITHDRAW)) {
+                record(TAG, "芝麻炼金⚗️[跳过] 需先完成提现，今日不再执行")
+                return@run
+            }
+            if (hasFlagToday(StatusFlags.FLAG_ANTMEMBER_ALCHEMY_TEMPLATE_NOT_EXIST)) {
+                record(TAG, "芝麻炼金⚗️[跳过] 生活记录模板不存在，今日不再执行")
+                return@run
+            }
+            if (hasFlagToday(StatusFlags.FLAG_ANTMEMBER_TASK_TIMES_LIMIT)) {
+                record(TAG, "芝麻炼金⚗️[跳过] 当天完成次数超限，今日不再执行")
+                return@run
+            }
+
             record(TAG, "开始执行芝麻炼金⚗️")
 
             // ================= Step 1: 自动炼金 (消耗芝麻粒升级) =================
@@ -1906,7 +1920,22 @@ class AntMember : ModelTask() {
                                 break
                             }
                         } else {
-                            Log.error(TAG, "芝麻炼金失败: " + alchemyJo.optString("resultView"))
+                            val resultCode = alchemyJo.optString("resultCode", "")
+                            val resultView = alchemyJo.optString("resultView", "")
+                            Log.error(TAG, "芝麻炼金失败: $resultView")
+                            // 不可恢复的业务错误设置当日跳过标记
+                            when (resultCode) {
+                                "MUST_FINISH_WITHDRAW" -> {
+                                    setFlagToday(StatusFlags.FLAG_ANTMEMBER_ALCHEMY_MUST_WITHDRAW)
+                                    record(TAG, "芝麻炼金⚠️需先完成提现，今日不再执行炼金")
+                                }
+                                "PROMISE_TEMPLATE_NOT_EXIST" -> {
+                                    setFlagToday(StatusFlags.FLAG_ANTMEMBER_ALCHEMY_TEMPLATE_NOT_EXIST)
+                                }
+                                "PROMISE_TODAY_FINISH_TIMES_LIMIT" -> {
+                                    setFlagToday(StatusFlags.FLAG_ANTMEMBER_TASK_TIMES_LIMIT)
+                                }
+                            }
                             break
                         }
                     }
@@ -2745,6 +2774,20 @@ class AntMember : ModelTask() {
                     responseObj = JSONObject(s)
                     if (!ResChecker.checkRes(TAG, responseObj)) {
                         Log.error(TAG, "芝麻信用💳[领取任务" + taskTitle + "失败]#" + s)
+                        // 检测不可恢复的业务错误码，设置当日跳过标记
+                        val resultCode = responseObj.optString("resultCode", "")
+                        when (resultCode) {
+                            "PROMISE_TODAY_FINISH_TIMES_LIMIT", "PROMISE_TEMPLATE_NOT_EXIST",
+                            "PROMISE_HAS_PROCESSING_TEMPLATE" -> {
+                                setFlagToday(StatusFlags.FLAG_ANTMEMBER_TASK_TIMES_LIMIT)
+                                record(TAG, "芝麻信用⚠️当天任务次数超限或模板不可用，跳过剩余所有任务")
+                                return intArrayOf(completedCount, skippedCount)
+                            }
+                            "OP_REPEAT_CHECK" -> {
+                                // 操作太频繁，增加延迟后继续
+                                delay(3000)
+                            }
+                        }
                         // 自动添加到黑名单
                         val errorCode = responseObj.optString("errorCode", "")
                         if (!errorCode.isEmpty()) {

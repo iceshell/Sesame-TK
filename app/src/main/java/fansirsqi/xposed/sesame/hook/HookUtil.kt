@@ -345,6 +345,9 @@ object HookUtil {
             )
 
             Log.record(TAG, "Hook AssetManager(openFd/openAssetFd) 成功")
+        } catch (e: NoSuchMethodError) {
+            // 新版 Android/支付宝可能移除了 openAssetFd 方法，SliderTFLite 已用文件加载策略替代，静默跳过
+            Log.record(TAG, "Hook AssetManager 跳过: 方法不存在(已用文件加载替代)")
         } catch (e: Exception) {
             Log.printStackTrace(TAG, "Hook AssetManager 失败", e)
         }

@@ -19,6 +19,8 @@ import fansirsqi.xposed.sesame.util.Log;
 public abstract class IdMapManager {
     private static final String TAG = IdMapManager.class.getSimpleName();
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private static final File OLD_CONFIG_DIR = Files.MAIN_DIR; // 旧配置目录
     private static final File CONFIG_DIR = Files.CONFIG_DIR; // 配置目录
     /**
@@ -105,7 +107,7 @@ public abstract class IdMapManager {
                 assert file != null;
                 String body = Files.readFromFile(file);
                 if (!body.isEmpty()) {
-                    ObjectMapper objectMapper = new ObjectMapper();
+                    ObjectMapper objectMapper = OBJECT_MAPPER;
                     Map<String, String> newMap = objectMapper.readValue(body, new TypeReference<>() {
                     });
                     idMap.putAll(newMap);
@@ -125,7 +127,7 @@ public abstract class IdMapManager {
             if (newFile.exists()) {
                 String body = Files.readFromFile(newFile);
                 if (!body.isEmpty()) {
-                    ObjectMapper objectMapper = new ObjectMapper();
+                    ObjectMapper objectMapper = OBJECT_MAPPER;
                     Map<String, String> newMap = objectMapper.readValue(body, new TypeReference<>() {
                     });
                     idMap.putAll(newMap);
@@ -142,7 +144,7 @@ public abstract class IdMapManager {
                 try {
                     String body = Files.readFromFile(oldFile);
                     if (!body.isEmpty()) {
-                        ObjectMapper objectMapper = new ObjectMapper();
+                        ObjectMapper objectMapper = OBJECT_MAPPER;
                         Map<String, String> newMap = objectMapper.readValue(body, new TypeReference<>() {
                         });
                         String json = JsonUtil.formatJson(newMap);
@@ -178,7 +180,7 @@ public abstract class IdMapManager {
      */
     public synchronized boolean save(String userId) {
         try {
-            ObjectMapper objectMapper = new ObjectMapper();
+            ObjectMapper objectMapper = OBJECT_MAPPER;
             String json = JsonUtil.formatJson(idMap);
 //             json = objectMapper.writeValueAsString(idMap);
             File file = Files.getTargetFileofUser(userId, thisFileName());
@@ -191,7 +193,7 @@ public abstract class IdMapManager {
 
     public synchronized boolean save() {
         try {
-            ObjectMapper objectMapper = new ObjectMapper();
+            ObjectMapper objectMapper = OBJECT_MAPPER;
             String json = JsonUtil.formatJson(idMap);
 //            String json = objectMapper.writeValueAsString(idMap);
             File file = Files.getTargetFileofDir(CONFIG_DIR, thisFileName());

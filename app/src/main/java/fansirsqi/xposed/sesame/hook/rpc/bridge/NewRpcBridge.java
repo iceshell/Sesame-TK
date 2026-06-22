@@ -35,11 +35,21 @@ public class NewRpcBridge implements RpcBridge {
     private final AtomicInteger maxErrorCount = new AtomicInteger(0);
     private final Integer setMaxErrorCount = BaseModel.Companion.getSetMaxErrorCount().getValue();
 
+    // 错误码常量
+    private static final String ERR_NETWORK_BUSY = "1004";
+    private static final String ERR_SAFETY_VERIFY = "1009";
+    private static final String ERR_SYSTEM_ERROR = "2000";
+    // 错误字符串标记
+    private static final String ERR_STR_BUSY = "繁忙";
+    private static final String ERR_STR_REJECT = "拒绝";
+    private static final String ERR_STR_NETWORK_UNAVAILABLE = "网络不可用";
+    private static final String ERR_STR_RETRY = "重试";
+
     ArrayList<String> errorMark = new ArrayList<>(Arrays.asList(
-            "1004", "1009", "2000", "46", "48"
+            ERR_NETWORK_BUSY, ERR_SAFETY_VERIFY, ERR_SYSTEM_ERROR, "46", "48"
     ));
     ArrayList<String> errorStringMark = new ArrayList<>(Arrays.asList(
-            "繁忙", "拒绝", "网络不可用", "重试"
+            ERR_STR_BUSY, ERR_STR_REJECT, ERR_STR_NETWORK_UNAVAILABLE, ERR_STR_RETRY
     ));
 
     // 需要屏蔽错误日志的RPC方法列表

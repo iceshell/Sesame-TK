@@ -14,7 +14,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -30,14 +29,21 @@ object SmartSchedulerManager {
     private const val TAG = "SmartScheduler"
     private const val WAKELOCK_TAG = "Sesame:SchedulerLock"
 
+    // 超过此阈值的延迟任务不持有 WakeLock，避免长时间耗电
+    private const val WAKELOCK_THRESHOLD_MS = 60 * 1000L // 1分钟
+
     // 独立的协程作用域，使用 SupervisorJob 确保单个任务崩溃不影响其他任务
     // 改为可重新创建
+    @Volatile
     private var _scope: CoroutineScope? = null
     private val scope: CoroutineScope
+        @Synchronized
         get() {
             val s = _scope
             if (s != null && s.isActive) return s
-            return CoroutineScope(Dispatchers.Default + SupervisorJob()).also { _scope = it }
+            val newScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+            _scope = newScope
+            return newScope
         }
 
     // 管理所有正在运行的任务 Job，用于取消
@@ -91,30 +97,34 @@ object SmartSchedulerManager {
 
         // 启动协程
         val job = scope.launch {
-            val wakeLock = acquireWakeLock(finalDelay + 5000)
             Log.record(TAG, "⏳ 任务调度: [$taskName] | ID:$taskId | 延迟: ${TimeUtil.formatDuration(finalDelay)}")
-            Log.record( ">".repeat(40))
 
             try {
-                // 核心：在 WakeLock 保护下进行挂起
-                delay(finalDelay)
+                if (finalDelay > WAKELOCK_THRESHOLD_MS) {
+                    // 长延迟任务：不持有 WakeLock，依赖系统 AlarmManager 兜底
+                    delay(finalDelay)
+                } else {
+                    // 短延迟任务：持有 WakeLock 确保 CPU 活跃
+                    val wakeLock = acquireWakeLock(finalDelay + 5000)
+                    try {
+                        delay(finalDelay)
+                    } finally {
+                        releaseWakeLock(wakeLock)
+                    }
+                }
 
                 if (isActive) {
                     Log.record(TAG, "▶️ 开始执行: [$taskName] | ID:$taskId")
-                    // 切换到主线程执行 Hook 逻辑（通常 Hook 需要在主线程）
-                    withContext(Dispatchers.Main) {
-                        try {
-                            block()
-                        } catch (e: Exception) {
-                            Log.error(TAG, "❌ 任务执行异常 [$taskName]: ${e.message}")
-                        }
+                    // 在 Default 调度器执行，需要主线程的任务自行 withContext(Dispatchers.Main)
+                    try {
+                        block()
+                    } catch (e: Exception) {
+                        Log.error(TAG, "❌ 任务执行异常 [$taskName]: ${e.message}")
                     }
                 }
             } catch (e: CancellationException) {
                 Log.record(TAG, "🚫 任务已取消: [$taskName] | ID:$taskId")
             } finally {
-                // 释放锁和清理 Map
-                releaseWakeLock(wakeLock)
                 taskMap.remove(taskId)
                 if (namedTasks[taskName] == taskId) {
                     namedTasks.remove(taskName)
@@ -132,6 +142,13 @@ object SmartSchedulerManager {
     fun cancelTask(taskId: Int) {
         taskMap[taskId]?.cancel()
         taskMap.remove(taskId)
+    }
+
+    /**
+     * 检查指定名称的任务是否正在调度中
+     */
+    fun hasTask(taskName: String): Boolean {
+        return namedTasks.containsKey(taskName)
     }
 
     /**
