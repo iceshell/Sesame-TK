@@ -39,44 +39,19 @@ object MotionEventSimulator {
 
     private fun generateHumanLikeTracks(totalDistance: Float): List<Pair<Float, Float>> {
         val tracks = mutableListOf<Pair<Float, Float>>()
-        var currentX = 0f
-        // P2-01.5: 随机化物理参数(±30%)，模拟人类操作的不确定性
-        var v = Random.nextFloat() * 1.5f
-        val a_accel = 1.5f * (0.7f + Random.nextFloat() * 0.6f)
-        val a_decel = -2.0f * (0.7f + Random.nextFloat() * 0.6f)
-        val mid = totalDistance * (0.60f + Random.nextFloat() * 0.15f)
-
-        // 40%概率在25%-55%处插入微停顿
-        val microPauseAt = if (Random.nextFloat() < 0.4f) totalDistance * (0.25f + Random.nextFloat() * 0.3f) else -1f
-        var paused = false
-
+        var currentX = 0f; var v = 0f
+        val a_accel = 1.5f; val a_decel = -2.0f
+        val mid = totalDistance * 0.7f
         while (currentX < totalDistance) {
             val a = if (currentX < mid) a_accel else a_decel
-            val t = (0.3f + Random.nextFloat() * 0.4f) * (0.8f + Random.nextFloat() * 0.4f)
-            val move = v * t + 0.5f * a * t * t; v += a * t
-            if (v < 0.3f && currentX >= mid) v = 0.3f + Random.nextFloat() * 0.5f
-
-            // 微停顿逻辑
-            if (!paused && microPauseAt > 0 && currentX >= microPauseAt) {
-                paused = true
-                repeat(Random.nextInt(1, 4)) {
-                    currentX += Random.nextFloat() * 1.5f
-                    tracks.add(Pair(currentX, Random.nextInt(-2, 3).toFloat()))
-                }
-            }
-
-            currentX += move
-            val yJitter = (if (v > 3f) Random.nextInt(-3, 4) else Random.nextInt(-1, 2)).toFloat()
-            tracks.add(Pair(currentX, yJitter))
+            val t = 0.5f; val move = v * t + 0.5f * a * t * t; v += a * t
+            if (v < 0.5f && currentX >= mid) v = 0.5f
+            currentX += move; tracks.add(Pair(currentX, 0f))
             if (currentX > totalDistance) break
         }
-
-        // 85%概率触发回摆
-        if (Random.nextFloat() < 0.85f) {
-            val overshoot = totalDistance * (0.01f + Random.nextFloat() * 0.03f) + Random.nextFloat() * 3f
-            tracks.add(Pair(totalDistance + overshoot, Random.nextInt(-1, 2).toFloat()))
-            tracks.add(Pair(totalDistance + (overshoot / 2), Random.nextInt(-1, 2).toFloat()))
-        }
+        val overshoot = Random.nextFloat() * 5f + 2f
+        tracks.add(Pair(totalDistance + overshoot, 0f))
+        tracks.add(Pair(totalDistance + (overshoot / 2), 0f))
         tracks.add(Pair(totalDistance, 0f))
         return tracks
     }
