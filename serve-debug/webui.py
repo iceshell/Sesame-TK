@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 from typing import Dict, Any, List
@@ -74,7 +75,7 @@ def get_merged_models():
     """读取 config.json 并合并到 Metadata 中"""
     config_data = load_json(CONFIG_FILE)
     model_fields_map = config_data.get("modelFieldsMap", {})
-    merged_data = json.loads(json.dumps(MODELS_META))
+    merged_data = copy.deepcopy(MODELS_META)
     for model_name, fields_list in merged_data.items():
         config_values = model_fields_map.get(model_name, {})
         for field_def in fields_list:
@@ -107,7 +108,7 @@ def get_injection_script():
     # merged_models = get_merged_models()
     # models_json = json.dumps(merged_models, ensure_ascii=False)
 
-    models_json = json.loads(json.dumps(MODELS_META))
+    models_json = copy.deepcopy(MODELS_META)
     friend_data = get_friend_list()
     friend_data_json = json.dumps(friend_data, ensure_ascii=False)
 

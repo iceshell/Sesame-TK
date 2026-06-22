@@ -187,6 +187,13 @@
             const [selectedIds, setSelectedIds] = useState(new Set()); // 选中的ID集合
             const [selectedCounts, setSelectedCounts] = useState({}); // ID对应的数值
 
+            // 搜索防抖: 300ms延迟减少重渲染
+            const searchTimer = useRef(null);
+            const handleSearch = (value) => {
+                if (searchTimer.current) clearTimeout(searchTimer.current);
+                searchTimer.current = setTimeout(() => setSheetSearch(value), 300);
+            };
+
             // 初始化
             useEffect(() => {
                 const tabsData = getTabsData();
@@ -466,7 +473,7 @@
                                 prefix={<IconSearch />}
                                 placeholder="搜索名称..."
                                 value={sheetSearch}
-                                onChange={setSheetSearch}
+                                onChange={handleSearch}
                             />
                             <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <Checkbox onChange={toggleAll} checked={false}>

@@ -20,7 +20,7 @@ class HookData(Base):
     Method = Column(String(50))
     Params = Column(Text)
     Data = Column(Text)
-    created_at = Column(DateTime, default=get_local_now)
+    created_at = Column(DateTime, default=get_local_now, index=True)
     updated_at = Column(DateTime, default=get_local_now, onupdate=get_local_now)
 
     # 自动清理策略（每小时触发）
